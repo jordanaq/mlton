@@ -18,11 +18,12 @@
 
       buildInputs = with pkgs; [
         binutils
-        busybox
         cmake
+        findutils
         gcc
         gmp
         gnumake
+        gnupatch
         mlton
         zlib
         zstd
