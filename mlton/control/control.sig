@@ -51,6 +51,7 @@ signature CONTROL =
       datatype 'a display =
          Layout of 'a -> Layout.t
        | Layouts of 'a * (Layout.t -> unit) -> unit
+       | LayoutNoHeader of 'a  -> Layout.t
 
       val diagnostic: (unit -> Layout.t) -> unit
       val diagnostics: ((Layout.t -> unit) -> unit) -> unit

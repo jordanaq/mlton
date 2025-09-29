@@ -268,6 +268,7 @@ fun checkFile (f: File.t, {fail: string -> 'a, name, ok: unit -> 'a}): 'a = let
 datatype 'a display =
     Layout of 'a -> Layout.t
   | Layouts of 'a * (Layout.t -> unit) -> unit
+  | LayoutNoHeader of 'a  -> Layout.t
 
 fun 'a sizeMessage (name: string, a: 'a): Layout.t =
    let open Layout
@@ -309,6 +310,8 @@ fun saveToFile {arg: 'a,
             doit (fn output =>
                   (outputHeader (style, output)
                    ; layout (arg, output)))
+       | LayoutNoHeader layout =>
+            doit (fn output => output (layout arg))
    end
 
 fun maybeSaveToFile {arg: 'a, name: string, suffix: string, toFile}: unit =

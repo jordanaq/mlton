@@ -199,6 +199,15 @@ structure Type =
               end))
       end
 
+      fun layoutDemo t =
+         let
+            open Layout
+         in
+            seq [str "(< ",
+                 layout t,
+                 str " >)"]
+         end
+
       local
          structure P = Parse
          open Parse.Ops
@@ -329,6 +338,57 @@ structure Exp =
              | Tuple xs => Tuple (fxs xs)
              | Var x => Var (fx x)
          end
+
+      fun layoutDemo' (e, layoutVar) =
+         let
+            open Layout
+            fun layoutArgs xs = Vector.layout layoutVar xs
+         in
+            case e of
+               ConApp {con, args} =>
+                  mayAlign [
+                     str "{<exp::ConApp>",
+                     indent (mayAlign [
+                         seq [str "con = ", Con.layout con, str ";"],
+                         str "args = ",
+                         mayAlign [layoutArgs args, str ";"]],
+                       2),
+                     str "}"]
+             | Const c => seq [str "{<exp::Const> ", Const.layoutDemo c, str "}"]
+             | PrimApp {prim, targs, args} =>
+                  mayAlign [
+                    str "{<exp::PrimApp>",
+                    indent (mayAlign [
+                        seq [str "prim = ", Prim.layoutFull (prim, Type.layoutDemo), str ";" ],
+                        if !Control.showTypes
+                           andalso not (Vector.isEmpty targs)
+                           then seq [str "targs = ",
+                                     Vector.layout Type.layoutDemo targs,
+                                     str ";"]
+                           else empty,
+                        seq [str "args = ", layoutArgs args, str ";"]],
+                      2), 
+                      str "}"]
+             | Profile p => seq [str "{<exp::Profile> ", ProfileExp.layout p , str "}"]
+             | Select {tuple, offset} =>
+                  seq [str "{<exp::Select>",
+                       indent (mayAlign [
+                           seq [str "tuple = ", layoutVar tuple, str ";"],
+                           seq [str "offset = ", Int.layout offset, str ";"]],
+                         2),
+                       str "}"]
+             | Tuple xs =>
+                  mayAlign [
+                    str "{<exp::Tuple>",
+                    indent (mayAlign [
+                        seq [str "args = ",
+                             Vector.layout layoutVar xs,
+                             str ";"]],
+                      2),
+                    str "}"]
+             | Var x => seq [str "{<exp::Var> var = ", Var.layout x, str "; }"]
+         end
+         
 
       fun layout' (e, layoutVar) =
          let
@@ -464,6 +524,30 @@ structure Statement =
 
       fun sizeAux (T {exp, ...}, acc, max, sizeExp) =
          Size.check (sizeExp exp + acc, max)
+      
+      fun layoutDemo' (T {var, ty, exp}, layoutVar) =
+         let
+            open Layout
+         in
+            mayAlign [str "{<statement>",
+                      indent (mayAlign [
+                        seq [str "var = \"", case var of
+                                              NONE => str "_"
+                                            | SOME var => Var.layout var,
+                             str "\";"],
+                        seq [str "type = ",
+                             if !Control.showTypes
+                               then Type.layoutDemo ty
+                               else str "_",
+                             str ";"],
+                        mayAlign [str "exp = ",
+                                  indent (Exp.layoutDemo' (exp, layoutVar), 2),
+                                  str ";"]
+                      ], 2),
+                      str "}"]
+         end
+
+      fun layoutDemo e = layoutDemo' (e, Var.layout)
 
       fun layout' (T {var, ty, exp}, layoutVar) =
          let
@@ -637,6 +721,110 @@ structure Transfer =
 
       fun replaceLabel (t, f) = replaceLabelVar (t, f, fn x => x)
       fun replaceVar (t, f) = replaceLabelVar (t, fn l => l, f)
+
+      fun layoutDemo' (t, layoutVar) =
+        let
+          open Layout
+          fun layoutArgs xs = Vector.layout layoutVar xs
+          fun layoutCaseDemo {test, cases, default} =
+            let
+              fun doit (l, layout) =
+                 Vector.toListMap
+                 (l, fn (i, l) =>
+                  seq [layout i, str " => ", Label.layout l])
+              datatype z = datatype Cases.t
+            in
+              case cases of
+                   Con l => mayAlign [
+                     str "{<transfer::case::Con>",
+                     indent (mayAlign [
+                         seq [str "test = ", layoutVar test, str ";"],
+                         mayAlign [str "cases = ",
+                                  indent (Vector.layout (fn x => x) (Vector.fromList (doit (l, Con.layout))), 2),
+                                  str ";"],
+                         case default of
+                           NONE => empty
+                           | SOME j =>
+                               seq [str "default = ", Label.layout j, str ";"]],
+                        2),
+                     str "}"]
+                | Word (size, l) => mayAlign [
+                     str "{<transfer::case::Word>",
+                     indent (mayAlign [
+                         seq [str "test = ", layoutVar test, str ";"],
+                         seq [str "size = ", str (WordSize.toString size), str ";"],
+                         mayAlign [str "cases = ",
+                                  indent (Vector.layout (fn x => x) (Vector.fromList (doit (l, fn w => WordX.layout (w, {suffix = true})))), 2),
+                                  str ";"],
+                         case default of
+                           NONE => empty
+                           | SOME j =>
+                               seq [str "default = ", Label.layout j, str ";"]],
+                        2),
+                     str "}"]
+            end
+          fun layoutPrim {prim, args} =
+            seq [Prim.layoutFull (prim, Type.layout), str " ", layoutArgs args]
+         in
+           case t of
+              Bug => str "{<transfer::Bug> }"
+            | Call {func, args, return} => (
+                 case return of
+                    Return.Dead => mayAlign [str "{<transfer::call::Dead>",
+                                        indent (mayAlign [
+                                            seq [str "func = ", Func.layout func, str ";"],
+                                            seq [str "args = ", layoutArgs args, str ";"]],
+                                          2),
+                                        str "}"]
+                  | Return.NonTail {cont, handler} =>
+                       mayAlign [
+                        str "{<transfer::call::NonTail>",
+                        indent (mayAlign [
+                            seq [str "func = ", Func.layout func, str ";"],
+                            seq [str "args = ", layoutArgs args, str ";"],
+                            seq [str "cont = ", Label.layout cont, str ";"],
+                            seq [str "handler = ",
+                                 case handler of
+                                    Handler.Caller => str "{<handler::Caller> }"
+                                  | Handler.Dead => str "{<handler::Dead> }"
+                                  | Handler.Handle l => seq [str "{<handler::Handle> label = ",
+                                                            Label.layout l,
+                                                            str "; }"],
+                                 str ";"]],
+                          2),
+                        str "}"]
+                  | Return.Tail => mayAlign [
+                        str "{<transfer::call::Tail>",
+                        indent (mayAlign [
+                            seq [str "func = ", Func.layout func, str ";"],
+                            seq [str "args = ", layoutArgs args, str ";"]],
+                          2),
+                        str "}"])
+            | Case arg => layoutCaseDemo arg
+            | Goto {dst, args} =>
+                 mayAlign [str "{<transfer::Goto>",
+                           indent (mayAlign [
+                               seq [str "dst = ", Label.layout dst, str ";"],
+                               seq [str "args = ", layoutArgs args, str ";"]],
+                             2),
+                           str "}"]
+            | Raise xs => mayAlign [str "{<transfer::Raise>",
+                                    indent (seq [str "args = ", layoutArgs xs, str ";"], 2),
+                                    str "}"]
+            | Return xs => mayAlign [str "{<transfer::Return>",
+                                     indent (seq [str "args = ", layoutArgs xs, str ";"], 2),
+                                     str "}"]
+            | Runtime {prim, args, return} =>
+                 mayAlign [str "{<transfer::Runtime>",
+                           indent (mayAlign [
+                               seq [str "return = ", Label.layout return, str ";"],
+                               seq [str "prim = ",
+                                    layoutPrim {prim = prim, args = args},
+                                    str ";"]],
+                             2),
+                           str "}"]
+         end
+      (* fun layoutDemo t = layoutDemo' (t, Var.layout) *)
 
       fun layout' (t, layoutVar) =
          let
@@ -823,6 +1011,14 @@ in
                                        indent (Type.layout t, 2)]
                         else Var.layout x)
       xts
+
+   fun layoutFormalsDemo (xts: (Var.t * Type.t) vector) =
+      Vector.layout (fn (x, t) =>
+                     if !Control.showTypes
+                        then mayAlign [seq [Var.layout x, str ":"],
+                                       indent (Type.layoutDemo t, 2)]
+                        else Var.layout x)
+      xts
 end
 local
    open Parse
@@ -873,6 +1069,27 @@ structure Block =
 
       fun sizeV (bs, {sizeExp, sizeTransfer}) =
          #1 (sizeAuxV (bs, 0, NONE, sizeExp, sizeTransfer))
+
+      fun layoutDemo' (T {label, args, statements, transfer}, layoutVar) =
+         let
+            open Layout
+            fun layoutStatement s = Statement.layoutDemo' (s, layoutVar)
+            fun layoutTransfer t = Transfer.layoutDemo' (t, layoutVar)
+         in
+            align [str "{<block>",
+                   indent (mayAlign [
+                       seq [str "label = \"", Label.layout label, str "\";"],
+                       seq [str "args = ", layoutFormalsDemo args, str ";"],
+                       seq [str "statements =",
+                            indent (Vector.layout layoutStatement statements, 2),
+                            str ";"],
+                       seq [str "transfer =",
+                            indent (layoutTransfer transfer, 2),
+                            str ";"]],
+                     2),
+                   str "}"]
+         end
+      (* fun layoutDemo b = layoutDemo' (b, Var.layout) *)
 
       fun layout' (T {label, args, statements, transfer}, layoutVar) =
          let
@@ -935,8 +1152,32 @@ structure Datatype =
                         if Vector.isEmpty args
                            then empty
                         else seq [str " of ",
-                                  Vector.layout Type.layout args]]),
+                                  Vector.layout Type.layoutDemo args]]),
                   "| ")]
+         end
+
+      fun layoutDemo (T {tycon, cons}) = 
+         let
+            open Layout
+            fun layoutCons {con, args} =
+               seq [str "( ",
+                    Con.layout con,
+                    if Vector.isEmpty args
+                       then empty
+                    else seq [str ", ",
+                              Vector.layout Type.layoutDemo args],
+                    str " )"]
+         in
+            mayAlign [str "{<datatype> ",
+                      indent (mayAlign [
+                          seq [str "tycon = \"",
+                               Tycon.layout tycon,
+                               str "\"; "],
+                          str "cons = ",
+                          Vector.layout layoutCons cons],
+                         2),
+                       str ";",
+                       str "}"]
          end
 
       val parse =
@@ -1374,6 +1615,46 @@ structure Function =
             pure (Option.isNone noInline, name, args, returns, raises, start))))))
          end
 
+      fun layoutDemo' (f: t, layoutVar) =
+         let
+            val {args, name, mayInline, raises, returns, start, blocks}= dest f
+            open Layout
+            fun layoutBlock b = Block.layoutDemo' (b, layoutVar)
+         in
+            mayAlign [
+              str "{<function> ",
+              indent (mayAlign [
+                  seq [str "name = \"",
+                       Func.layout name,
+                       str "\";"],
+                  seq [str "mayInline = ",
+                       if mayInline then str "true" else str "false",
+                       str ";"],
+                  seq [str "args = ",
+                       Vector.layout (fn (x, ty) =>
+                                      if !Control.showTypes
+                                         then mayAlign [seq [Var.layout x, str ":"],
+                                                        indent (Type.layoutDemo ty, 2)]
+                                         else Var.layout x)
+                       args,
+                       str ";"],
+                  seq [str "start = ",
+                       Label.layout start,
+                       str ";"],
+                  seq [str "returns = ",
+                       Option.layout (Vector.layout Type.layoutDemo) returns,
+                       str ";"],
+                  seq [str "raises = ",
+                       Option.layout (Vector.layout Type.layoutDemo) raises,
+                       str ";"],
+                  seq [str "blocks = ",
+                       Vector.layout layoutBlock blocks,
+                       str ";"]],
+                2),
+              str "}"]
+         end
+      fun layoutDemo f = layoutDemo' (f, Var.layout)
+
       fun layout' (f: t, layoutVar) =
          let
             val {blocks, ...} = dest f
@@ -1744,6 +2025,35 @@ structure Program =
             end
       end
 
+      fun layoutDemo (T {datatypes, globals, functions, main}) =
+         let
+            open Layout
+            val l =
+              align
+                [str "{<mltonssa>",
+                 seq [str "datatypes = ",
+                      Vector.layout Datatype.layoutDemo datatypes,
+                      str ";"],
+                 seq [str "globals = ",
+                      Vector.layout Statement.layoutDemo globals,
+                      str ";"],
+                 seq [str "functions = ",
+                      Vector.layout Function.layoutDemo (Vector.fromList functions),
+                      str ";"],
+                 seq [str "main = ",
+                      Func.layout main,
+                      str ";"],
+                 str "}"]
+         in
+            Control.saveToFile
+            {arg = (),
+             name = NONE,
+             toFile = {display = Control.LayoutNoHeader (fn () => l),
+                       style = Control.No,
+                       suffix = "demo"},
+             verb = Control.Detail}
+         end
+
       fun layouts (p as T {datatypes, globals, functions, main},
                    output': Layout.t -> unit) =
          let
@@ -1753,6 +2063,7 @@ structure Program =
              * to the one above.
              *)
             val output = output' 
+            val _ = layoutDemo p
          in
             output (str "\n\n(* Datatypes: *)")
             ; Vector.foreach (datatypes, output o Datatype.layout)

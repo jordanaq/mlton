@@ -43,6 +43,7 @@ signature CONST =
       val intInf: IntInf.t -> t
       val hash: t -> word
       val layout: t -> Layout.t
+      val layoutDemo: t -> Layout.t
       val null: t
       val parse: t Parse.t
       val real: RealX.t -> t

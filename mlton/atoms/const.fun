@@ -118,6 +118,17 @@ fun layout c =
     | Word w => WordX.layout (w, {suffix = true})
     | WordVector v => WordXVector.layout v
 
+fun layoutDemo c =
+   Layout.seq [Layout.str "{<const::",
+      case c of
+         CSymbol s => Layout.seq [Layout.str "CSymbol> ", CSymbol.layout s]
+       | IntInf i => Layout.seq [Layout.str "IntInf> ", IntInf.layout i]
+       | Null => Layout.seq [Layout.str "Null>"]
+       | Real r => Layout.seq [Layout.str "Real> ", RealX.layout (r, {suffix = true})]
+       | Word w => Layout.seq [Layout.str "Word> ", WordX.layout (w, {suffix = true})]
+       | WordVector v => Layout.seq [Layout.str "WordVector> ", WordXVector.layout v],
+      Layout.str "}"
+   ]
 val toString = Layout.toString o layout
 
 val parse =
