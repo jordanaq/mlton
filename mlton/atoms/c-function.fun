@@ -143,6 +143,18 @@ structure Target =
 
       val layout = Layout.str o toString
 
+      fun layoutDemo t = 
+         let
+            open Layout
+         in
+            namedRecord
+            ("target",
+             case t of
+                Direct name => [("type", str "Direct"),
+                                ("name", seq [str "\"", str name, str "\""])]
+              | Indirect => [("type", str "Indirect")])
+         end
+
       val parse =
          let
             open Parse
@@ -185,6 +197,27 @@ fun layout (T {args, convention, inline, kind, prototype, return, symbolScope, t
     ("return", layoutType return),
     ("symbolScope", SymbolScope.layout symbolScope),
     ("target", Target.layout target)]
+
+fun layoutDemo (T {args, convention, inline, kind, prototype, return, symbolScope, target, ...},
+                layoutType) =
+   let
+      open Layout
+      fun layoutCTypeDemo t = seq [str "(< ", CType.layout t, str " >)"]
+   in
+     namedRecord
+     ("CFunction",
+      [("args", Vector.layout layoutType args),
+       ("convention", Convention.layout convention),
+       ("inline", Bool.layout inline),
+       ("kind", Kind.layout kind),
+       ("prototype", (fn (args,ret) => 
+                      namedRecord ("prototype",
+                           [("args", Vector.layout layoutCTypeDemo args),
+                             ("res", Option.layout layoutCTypeDemo ret)])) prototype),
+       ("return", layoutType return),
+       ("symbolScope", SymbolScope.layout symbolScope),
+       ("target", Target.layoutDemo target)])
+   end
 
 fun parse parseType =
    let

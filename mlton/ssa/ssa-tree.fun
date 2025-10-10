@@ -199,12 +199,37 @@ structure Type =
               end))
       end
 
+      local
+         open Layout
+      in
+         val {get = layoutRecDemo, ...} =
+            Property.get
+            (plist,
+             Property.initRec
+             (fn (t, layout) =>
+                 case dest t of
+                    Array t => seq [str "Array( ", layout t, str " )"]
+                  | CPointer => str "CPointer"
+                  | Datatype t => seq [str "Datatype( \"", Tycon.layout t, str "\" )"]
+                  | IntInf => str "IntInf"
+                  | Real s => seq [str "Real( r", str (RealSize.toString s), str " )"]
+                  | Ref t => seq [str "Ref( ", layout t, str " )"]
+                  | Thread => str "Thread"
+                  | Tuple ts =>
+                         seq [str "Tuple ",
+                              (Vector.layout layout ts)]
+                  | Vector t => seq [str "Vector( ", layout t, str " )"]
+                  | Weak t => seq [str "Weak( ", layout t, str " )"]
+                  | Word s => seq [str "Word( w", str (WordSize.toString s), str " )"]
+              ))
+      end
+
       fun layoutDemo t =
          let
             open Layout
          in
             seq [str "(< ",
-                 layout t,
+                 layoutRecDemo t,
                  str " >)"]
          end
 
@@ -346,47 +371,25 @@ structure Exp =
          in
             case e of
                ConApp {con, args} =>
-                  mayAlign [
-                     str "{<exp::ConApp>",
-                     indent (mayAlign [
-                         seq [str "con = ", Con.layout con, str ";"],
-                         str "args = ",
-                         mayAlign [layoutArgs args, str ";"]],
-                       2),
-                     str "}"]
-             | Const c => seq [str "{<exp::Const> ", Const.layoutDemo c, str "}"]
+                  namedRecord ("exp::ConApp", [("con", seq [str "\"", Con.layout con, str "\""]),
+                                              ("args", layoutArgs args)])
+             | Const c => namedRecord ("exp::Const", [("const", Const.layoutDemo c)])
              | PrimApp {prim, targs, args} =>
-                  mayAlign [
-                    str "{<exp::PrimApp>",
-                    indent (mayAlign [
-                        seq [str "prim = ", Prim.layoutFull (prim, Type.layoutDemo), str ";" ],
-                        if !Control.showTypes
-                           andalso not (Vector.isEmpty targs)
-                           then seq [str "targs = ",
-                                     Vector.layout Type.layoutDemo targs,
-                                     str ";"]
-                           else empty,
-                        seq [str "args = ", layoutArgs args, str ";"]],
-                      2), 
-                      str "}"]
-             | Profile p => seq [str "{<exp::Profile> ", ProfileExp.layout p , str "}"]
+                  namedRecord ("exp::PrimApp",
+                             ([("prim", Prim.layoutFullDemo (prim, Type.layoutDemo)),
+                               ("args", layoutArgs args)] @
+                              (if !Control.showTypes
+                                 andalso not (Vector.isEmpty targs)
+                               then [("targs", Vector.layout Type.layoutDemo targs)]
+                               else [])))
+             | Profile p => namedRecord ("exp::Profile", [("profile", ProfileExp.layout p)])
              | Select {tuple, offset} =>
-                  seq [str "{<exp::Select>",
-                       indent (mayAlign [
-                           seq [str "tuple = ", layoutVar tuple, str ";"],
-                           seq [str "offset = ", Int.layout offset, str ";"]],
-                         2),
-                       str "}"]
+                  namedRecord ("exp::Select",
+                             [("tuple", layoutVar tuple),
+                              ("offset", Int.layout offset)])
              | Tuple xs =>
-                  mayAlign [
-                    str "{<exp::Tuple>",
-                    indent (mayAlign [
-                        seq [str "args = ",
-                             Vector.layout layoutVar xs,
-                             str ";"]],
-                      2),
-                    str "}"]
-             | Var x => seq [str "{<exp::Var> var = ", Var.layout x, str "; }"]
+                  namedRecord ("exp::Tuple", [("args", layoutArgs xs)])
+             | Var x => namedRecord ("exp::Var", [("var", layoutVar x)])
          end
          
 
@@ -529,22 +532,12 @@ structure Statement =
          let
             open Layout
          in
-            mayAlign [str "{<statement>",
-                      indent (mayAlign [
-                        seq [str "var = \"", case var of
-                                              NONE => str "_"
-                                            | SOME var => Var.layout var,
-                             str "\";"],
-                        seq [str "type = ",
-                             if !Control.showTypes
-                               then Type.layoutDemo ty
-                               else str "_",
-                             str ";"],
-                        mayAlign [str "exp = ",
-                                  indent (Exp.layoutDemo' (exp, layoutVar), 2),
-                                  str ";"]
-                      ], 2),
-                      str "}"]
+            namedRecord ("statement",
+               [("var", Option.layout Var.layout var),
+                ("type", if !Control.showTypes
+                           then Type.layoutDemo ty
+                           else str "_"),
+                ("exp", Exp.layoutDemo' (exp, layoutVar))])
          end
 
       fun layoutDemo e = layoutDemo' (e, Var.layout)
@@ -735,94 +728,63 @@ structure Transfer =
               datatype z = datatype Cases.t
             in
               case cases of
-                   Con l => mayAlign [
-                     str "{<transfer::case::Con>",
-                     indent (mayAlign [
-                         seq [str "test = ", layoutVar test, str ";"],
-                         mayAlign [str "cases = ",
-                                  indent (Vector.layout (fn x => x) (Vector.fromList (doit (l, Con.layout))), 2),
-                                  str ";"],
-                         case default of
-                           NONE => empty
-                           | SOME j =>
-                               seq [str "default = ", Label.layout j, str ";"]],
-                        2),
-                     str "}"]
-                | Word (size, l) => mayAlign [
-                     str "{<transfer::case::Word>",
-                     indent (mayAlign [
-                         seq [str "test = ", layoutVar test, str ";"],
-                         seq [str "size = ", str (WordSize.toString size), str ";"],
-                         mayAlign [str "cases = ",
-                                  indent (Vector.layout (fn x => x) (Vector.fromList (doit (l, fn w => WordX.layout (w, {suffix = true})))), 2),
-                                  str ";"],
-                         case default of
-                           NONE => empty
-                           | SOME j =>
-                               seq [str "default = ", Label.layout j, str ";"]],
-                        2),
-                     str "}"]
+                   Con l =>
+                     namedRecord ("transfer::case::Con",
+                        [("test", layoutVar test),
+                         ("cases", indent (Vector.layout (fn x => x) (Vector.fromList (doit (l, Con.layout))), 2))] @
+                        (case default of
+                           NONE => []
+                         | SOME j => [("default", Label.layout j)]))
+                | Word (size, l) =>
+                    namedRecord ("transfer::case::Word",
+                        [("test", layoutVar test),
+                         ("size", str (WordSize.toString size)),
+                         ("cases", indent (Vector.layout (fn x => x) (Vector.fromList (doit (l, fn w => WordX.layout (w, {suffix = true})))), 2))] @
+                        (case default of
+                           NONE => []
+                         | SOME j => [("default", Label.layout j)]))
             end
           fun layoutPrim {prim, args} =
             seq [Prim.layoutFull (prim, Type.layout), str " ", layoutArgs args]
          in
            case t of
-              Bug => str "{<transfer::Bug> }"
+              Bug => namedRecord ("transfer::Bug", [])
             | Call {func, args, return} => (
                  case return of
-                    Return.Dead => mayAlign [str "{<transfer::call::Dead>",
-                                        indent (mayAlign [
-                                            seq [str "func = ", Func.layout func, str ";"],
-                                            seq [str "args = ", layoutArgs args, str ";"]],
-                                          2),
-                                        str "}"]
+                    Return.Dead =>
+                       namedRecord ("transfer::call::Dead",
+                          [("func", Func.layout func),
+                           ("args", layoutArgs args)])
                   | Return.NonTail {cont, handler} =>
-                       mayAlign [
-                        str "{<transfer::call::NonTail>",
-                        indent (mayAlign [
-                            seq [str "func = ", Func.layout func, str ";"],
-                            seq [str "args = ", layoutArgs args, str ";"],
-                            seq [str "cont = ", Label.layout cont, str ";"],
-                            seq [str "handler = ",
-                                 case handler of
-                                    Handler.Caller => str "{<handler::Caller> }"
-                                  | Handler.Dead => str "{<handler::Dead> }"
-                                  | Handler.Handle l => seq [str "{<handler::Handle> label = ",
-                                                            Label.layout l,
-                                                            str "; }"],
-                                 str ";"]],
-                          2),
-                        str "}"]
-                  | Return.Tail => mayAlign [
-                        str "{<transfer::call::Tail>",
-                        indent (mayAlign [
-                            seq [str "func = ", Func.layout func, str ";"],
-                            seq [str "args = ", layoutArgs args, str ";"]],
-                          2),
-                        str "}"])
+                     namedRecord ("transfer::call::NonTail",
+                        [("func", Func.layout func),
+                         ("args", layoutArgs args),
+                         ("cont", Label.layout cont),
+                         ("handler",
+                           (case handler of
+                             Handler.Caller => namedRecord ("handler::Caller", [])
+                           | Handler.Dead => namedRecord ("handler::Dead", [])
+                           | Handler.Handle l => namedRecord ("handler::Handle",
+                                                       [("label", Label.layout l)])))])
+                  | Return.Tail =>
+                     namedRecord ("transfer::call::Tail",
+                        [("func", Func.layout func),
+                         ("args", layoutArgs args)]))
             | Case arg => layoutCaseDemo arg
             | Goto {dst, args} =>
-                 mayAlign [str "{<transfer::Goto>",
-                           indent (mayAlign [
-                               seq [str "dst = ", Label.layout dst, str ";"],
-                               seq [str "args = ", layoutArgs args, str ";"]],
-                             2),
-                           str "}"]
-            | Raise xs => mayAlign [str "{<transfer::Raise>",
-                                    indent (seq [str "args = ", layoutArgs xs, str ";"], 2),
-                                    str "}"]
-            | Return xs => mayAlign [str "{<transfer::Return>",
-                                     indent (seq [str "args = ", layoutArgs xs, str ";"], 2),
-                                     str "}"]
+               namedRecord ("transfer::Goto",
+                        [("dst", Label.layout dst),
+                         ("args", layoutArgs args)])
+            | Raise xs =>
+               namedRecord ("transfer::Raise",
+                        [("args", layoutArgs xs)])
+            | Return xs =>
+               namedRecord ("transfer::Return",
+                        [("args", layoutArgs xs)])
             | Runtime {prim, args, return} =>
-                 mayAlign [str "{<transfer::Runtime>",
-                           indent (mayAlign [
-                               seq [str "return = ", Label.layout return, str ";"],
-                               seq [str "prim = ",
-                                    layoutPrim {prim = prim, args = args},
-                                    str ";"]],
-                             2),
-                           str "}"]
+               namedRecord ("transfer::Runtime",
+                        [("prim", layoutPrim {prim = prim, args = args}),
+                         ("return", Label.layout return)])
          end
       (* fun layoutDemo t = layoutDemo' (t, Var.layout) *)
 
@@ -1076,18 +1038,11 @@ structure Block =
             fun layoutStatement s = Statement.layoutDemo' (s, layoutVar)
             fun layoutTransfer t = Transfer.layoutDemo' (t, layoutVar)
          in
-            align [str "{<block>",
-                   indent (mayAlign [
-                       seq [str "label = \"", Label.layout label, str "\";"],
-                       seq [str "args = ", layoutFormalsDemo args, str ";"],
-                       seq [str "statements =",
-                            indent (Vector.layout layoutStatement statements, 2),
-                            str ";"],
-                       seq [str "transfer =",
-                            indent (layoutTransfer transfer, 2),
-                            str ";"]],
-                     2),
-                   str "}"]
+            namedRecord ("block",
+               [("label", Label.layout label),
+                ("args", layoutFormalsDemo args),
+                ("statements", Vector.layout layoutStatement statements),
+                ("transfer", layoutTransfer transfer)])
          end
       (* fun layoutDemo b = layoutDemo' (b, Var.layout) *)
 
@@ -1152,7 +1107,7 @@ structure Datatype =
                         if Vector.isEmpty args
                            then empty
                         else seq [str " of ",
-                                  Vector.layout Type.layoutDemo args]]),
+                                  Vector.layout Type.layout args]]),
                   "| ")]
          end
 
@@ -1168,16 +1123,9 @@ structure Datatype =
                               Vector.layout Type.layoutDemo args],
                     str " )"]
          in
-            mayAlign [str "{<datatype> ",
-                      indent (mayAlign [
-                          seq [str "tycon = \"",
-                               Tycon.layout tycon,
-                               str "\"; "],
-                          str "cons = ",
-                          Vector.layout layoutCons cons],
-                         2),
-                       str ";",
-                       str "}"]
+            namedRecord ("datatype",
+               [("tycon", seq [str "\"", Tycon.layout tycon, str "\""]),
+                ("cons", Vector.layout layoutCons cons)])
          end
 
       val parse =
@@ -1621,37 +1569,19 @@ structure Function =
             open Layout
             fun layoutBlock b = Block.layoutDemo' (b, layoutVar)
          in
-            mayAlign [
-              str "{<function> ",
-              indent (mayAlign [
-                  seq [str "name = \"",
-                       Func.layout name,
-                       str "\";"],
-                  seq [str "mayInline = ",
-                       if mayInline then str "true" else str "false",
-                       str ";"],
-                  seq [str "args = ",
-                       Vector.layout (fn (x, ty) =>
-                                      if !Control.showTypes
-                                         then mayAlign [seq [Var.layout x, str ":"],
-                                                        indent (Type.layoutDemo ty, 2)]
-                                         else Var.layout x)
-                       args,
-                       str ";"],
-                  seq [str "start = ",
-                       Label.layout start,
-                       str ";"],
-                  seq [str "returns = ",
-                       Option.layout (Vector.layout Type.layoutDemo) returns,
-                       str ";"],
-                  seq [str "raises = ",
-                       Option.layout (Vector.layout Type.layoutDemo) raises,
-                       str ";"],
-                  seq [str "blocks = ",
-                       Vector.layout layoutBlock blocks,
-                       str ";"]],
-                2),
-              str "}"]
+            namedRecord ("function",
+               [("name", seq [str "\"", Func.layout name, str "\""]),
+                ("mayInline", if mayInline then str "true" else str "false"),
+                ("args", Vector.layout (fn (x, ty) =>
+                                       if !Control.showTypes
+                                          then mayAlign [seq [Var.layout x, str ":"],
+                                                         indent (Type.layoutDemo ty, 2)]
+                                          else Var.layout x)
+                       args),
+                ("start", Label.layout start),
+                ("returns", Option.layout (Vector.layout Type.layoutDemo) returns),
+                ("raises", Option.layout (Vector.layout Type.layoutDemo) raises),
+                ("blocks", Vector.layout layoutBlock blocks)])
          end
       fun layoutDemo f = layoutDemo' (f, Var.layout)
 
@@ -2029,21 +1959,14 @@ structure Program =
          let
             open Layout
             val l =
-              align
-                [str "{<mltonssa>",
-                 seq [str "datatypes = ",
-                      Vector.layout Datatype.layoutDemo datatypes,
-                      str ";"],
-                 seq [str "globals = ",
-                      Vector.layout Statement.layoutDemo globals,
-                      str ";"],
-                 seq [str "functions = ",
-                      Vector.layout Function.layoutDemo (Vector.fromList functions),
-                      str ";"],
-                 seq [str "main = ",
-                      Func.layout main,
-                      str ";"],
-                 str "}"]
+               namedRecord ("mltonssa", [("datatypes", 
+                                          Vector.layout Datatype.layoutDemo datatypes),
+                                         ("globals",
+                                          Vector.layout Statement.layoutDemo globals),
+                                         ("functions",
+                                          Vector.layout Function.layoutDemo
+                                          (Vector.fromList functions)),
+                                         ("main", Func.layout main)])
          in
             Control.saveToFile
             {arg = (),

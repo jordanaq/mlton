@@ -119,16 +119,18 @@ fun layout c =
     | WordVector v => WordXVector.layout v
 
 fun layoutDemo c =
-   Layout.seq [Layout.str "{<const::",
+   let 
+      open Layout
+   in
       case c of
-         CSymbol s => Layout.seq [Layout.str "CSymbol> ", CSymbol.layout s]
-       | IntInf i => Layout.seq [Layout.str "IntInf> ", IntInf.layout i]
-       | Null => Layout.seq [Layout.str "Null>"]
-       | Real r => Layout.seq [Layout.str "Real> ", RealX.layout (r, {suffix = true})]
-       | Word w => Layout.seq [Layout.str "Word> ", WordX.layout (w, {suffix = true})]
-       | WordVector v => Layout.seq [Layout.str "WordVector> ", WordXVector.layout v],
-      Layout.str "}"
-   ]
+         CSymbol s => namedRecord ("const::CSymbol", [("const",CSymbol.layout s)])
+       | IntInf i => namedRecord ("const::IntInf", [("const", IntInf.layout i)])
+       | Null => namedRecord ("const::Null", [])
+       | Real r => namedRecord ("const::Real", [("const", RealX.layout (r, {suffix = true}))])
+       | Word w => namedRecord ("const::Word", [("const", WordX.layout (w, {suffix = true}))])
+       | WordVector v => namedRecord ("const::WordVector", [("const", WordXVector.layout v)])
+   end
+
 val toString = Layout.toString o layout
 
 val parse =

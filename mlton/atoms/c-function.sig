@@ -103,6 +103,7 @@ signature C_FUNCTION =
       val cPrototype: 'a t -> string
       val isOk: 'a t * {isUnit: 'a -> bool} -> bool
       val layout: 'a t * ('a -> Layout.t) -> Layout.t
+      val layoutDemo: 'a t * ('a -> Layout.t) -> Layout.t
       val map: 'a t * ('a -> 'b) -> 'b t
       val mayGC: 'a t -> bool
       val maySwitchThreadsFrom: 'a t -> bool

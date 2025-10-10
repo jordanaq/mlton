@@ -905,6 +905,21 @@ fun isFunctional p = Kind.Functional = kind p
 
 fun maySideEffect p = Kind.SideEffect = kind p
 
+fun layoutFullDemo (p, layoutX) =
+   let
+      open Layout
+   in
+      namedRecord ("primitive",
+         [("prim", case p of
+                     CFunction f => CFunction.layoutDemo (f, layoutX)
+                     | p => seq [str "\"", layout p, str "\""]),
+          ("kind", case kind p of
+                       DependsOnState => str "DependsOnState"
+                     | Functional => str "Functional"
+                     | Moveable => str "Moveable"
+                     | SideEffect => str "SideEffect")])
+   end
+
 local
    fun reals (s: RealSize.t) =
       [(Real_Math_acos s),

@@ -1,6 +1,7 @@
 /boot/
 /build/
 /install/
-mlton-*.tgz
 /.direnv/
+/tmp/
+mlton-*.tgz
 /flake.lock
