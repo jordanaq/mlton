@@ -908,16 +908,210 @@ fun maySideEffect p = Kind.SideEffect = kind p
 fun layoutFullDemo (p, layoutX) =
    let
       open Layout
+      fun wordSizeLayout z = seq [str "w", str (WordSize.toString z)]
+      fun realSizeLayout z = seq [str "r", str (RealSize.toString z)]
    in
-      namedRecord ("primitive",
-         [("prim", case p of
-                     CFunction f => CFunction.layoutDemo (f, layoutX)
-                     | p => seq [str "\"", layout p, str "\""]),
-          ("kind", case kind p of
-                       DependsOnState => str "DependsOnState"
-                     | Functional => str "Functional"
-                     | Moveable => str "Moveable"
-                     | SideEffect => str "SideEffect")])
+      case p of
+         Array_alloc {raw} =>
+            namedRecord ("prim::ArrayAlloc",
+                         [("raw", str (Bool.toString raw))])
+         | Array_array => namedRecord ("prim::ArrayArray", [])
+         | Array_copyArray => namedRecord ("prim::ArrayCopyArray", [])
+         | Array_copyVector => namedRecord ("prim::ArrayCopyVector", [])
+         | Array_length => namedRecord ("prim::ArrayLength", [])
+         | Array_sub => namedRecord ("prim::ArraySub", [])
+         | Array_toArray => namedRecord ("prim::ArrayToArray", [])
+         | Array_toVector => namedRecord ("prim::ArrayToVector", [])
+         | Array_uninit => namedRecord ("prim::ArrayUninit", [])
+         | Array_uninitIsNop => namedRecord ("prim::ArrayUninitIsNop", [])
+         | Array_update => namedRecord ("prim::ArrayUpdate", [])
+         | CFunction func => namedRecord ("prim::CFunction", [("func", CFunction.layoutDemo (func, layoutX))])
+         | CPointer_add => namedRecord ("prim::CPointerAdd", [])
+         | CPointer_diff => namedRecord ("prim::CPointerDiff", [])
+         | CPointer_equal => namedRecord ("prim::CPointerEqual", [])
+         | CPointer_fromWord => namedRecord ("prim::CPointerFromWord", [])
+         | CPointer_getCPointer => namedRecord ("prim::CPointerGetCPointer", [])
+         | CPointer_getObjptr => namedRecord ("prim::CPointerGetObjptr", [])
+         | CPointer_getReal z => namedRecord ("prim::CPointerGetReal", [("size", realSizeLayout z)])
+         | CPointer_getWord z => namedRecord ("prim::CPointerGetWord", [("size", wordSizeLayout z)])
+         | CPointer_lt => namedRecord ("prim::CPointerLt", [])
+         | CPointer_setCPointer => namedRecord ("prim::CPointerSetCPointer", [])
+         | CPointer_setObjptr => namedRecord ("prim::CPointerSetObjptr", [])
+         | CPointer_setReal z => namedRecord ("prim::CPointerSetReal", [("size", realSizeLayout z)])
+         | CPointer_setWord z => namedRecord ("prim::CPointerSetWord", [("size", wordSizeLayout z)])
+         | CPointer_sub => namedRecord ("prim::CPointerSub", [])
+         | CPointer_toWord => namedRecord ("prim::CPointerToWord", [])
+         | Exn_extra => namedRecord ("prim::ExnExtra", [])
+         | Exn_name => namedRecord ("prim::ExnName", [])
+         | Exn_setExtendExtra => namedRecord ("prim::ExnSetExtendExtra", [])
+         | GC_collect => namedRecord ("prim::GCCollect", [])
+         | GC_state => namedRecord ("prim::GCState", [])
+         | IntInf_add => namedRecord ("prim::IntInfAdd", [])
+         | IntInf_andb => namedRecord ("prim::IntInfAndb", [])
+         | IntInf_arshift => namedRecord ("prim::IntInfArshift", [])
+         | IntInf_compare => namedRecord ("prim::IntInfCompare", [])
+         | IntInf_gcd => namedRecord ("prim::IntInfGcd", [])
+         | IntInf_lshift => namedRecord ("prim::IntInfLshift", [])
+         | IntInf_mul => namedRecord ("prim::IntInfMul", [])
+         | IntInf_neg => namedRecord ("prim::IntInfNeg", [])
+         | IntInf_notb => namedRecord ("prim::IntInfNotb", [])
+         | IntInf_orb => namedRecord ("prim::IntInfOrb", [])
+         | IntInf_quot => namedRecord ("prim::IntInfQuot", [])
+         | IntInf_rem => namedRecord ("prim::IntInfRem", [])
+         | IntInf_sub => namedRecord ("prim::IntInfSub", [])
+         | IntInf_toString => namedRecord ("prim::IntInfToString", [])
+         | IntInf_toVector => namedRecord ("prim::IntInfToVector", [])
+         | IntInf_toWord => namedRecord ("prim::IntInfToWord", [])
+         | IntInf_xorb => namedRecord ("prim::IntInfXorb", [])
+         | MLton_bogus => namedRecord ("prim::MLtonBogus", [])
+         | MLton_bug => namedRecord ("prim::MLtonBug", [])
+         | MLton_deserialize => namedRecord ("prim::MLtonDeserialize", [])
+         | MLton_eq => namedRecord ("prim::MLtonEq", [])
+         | MLton_equal => namedRecord ("prim::MLtonEqual", [])
+         | MLton_halt => namedRecord ("prim::MLtonHalt", [])
+         | MLton_hash => namedRecord ("prim::MLtonHash", [])
+         | MLton_handlesSignals => namedRecord ("prim::MLtonHandlesSignals", [])
+         | MLton_installSignalHandler => namedRecord ("prim::MLtonInstallSignalHandler", [])
+         | MLton_serialize => namedRecord ("prim::MLtonSerialize", [])
+         | MLton_share => namedRecord ("prim::MLtonShare", [])
+         | MLton_size => namedRecord ("prim::MLtonSize", [])
+         | MLton_touch => namedRecord ("prim::MLtonTouch", [])
+         | Real_Math_acos z => namedRecord ("prim::RealMathAcos", [("size", realSizeLayout z)])
+         | Real_Math_asin z => namedRecord ("prim::RealMathAsin", [("size", realSizeLayout z)])
+         | Real_Math_atan z => namedRecord ("prim::RealMathAtan", [("size", realSizeLayout z)])
+         | Real_Math_atan2 z => namedRecord ("prim::RealMathAtan2", [("size", realSizeLayout z)])
+         | Real_Math_cos z => namedRecord ("prim::RealMathCos", [("size", realSizeLayout z)])
+         | Real_Math_exp z => namedRecord ("prim::RealMathExp", [("size", realSizeLayout z)])
+         | Real_Math_ln z => namedRecord ("prim::RealMathLn", [("size", realSizeLayout z)])
+         | Real_Math_log10 z => namedRecord ("prim::RealMathLog10", [("size", realSizeLayout z)])
+         | Real_Math_sin z => namedRecord ("prim::RealMathSin", [("size", realSizeLayout z)])
+         | Real_Math_sqrt z => namedRecord ("prim::RealMathSqrt", [("size", realSizeLayout z)])
+         | Real_Math_tan z => namedRecord ("prim::RealMathTan", [("size", realSizeLayout z)])
+         | Real_abs z => namedRecord ("prim::RealAbs", [("size", realSizeLayout z)])
+         | Real_add z => namedRecord ("prim::RealAdd", [("size", realSizeLayout z)])
+         | Real_castToWord (from, to) =>
+            namedRecord ("prim::RealCastToWord",
+                         [("from", realSizeLayout from),
+                          ("to", wordSizeLayout to)])
+         | Real_div z => namedRecord ("prim::RealDiv", [("size", realSizeLayout z)])
+         | Real_equal z => namedRecord ("prim::RealEqual", [("size", realSizeLayout z)])
+         | Real_ldexp z => namedRecord ("prim::RealLdexp", [("size", realSizeLayout z)])
+         | Real_le z => namedRecord ("prim::RealLe", [("size", realSizeLayout z)])
+         | Real_lt z => namedRecord ("prim::RealLt", [("size", realSizeLayout z)])
+         | Real_mul z => namedRecord ("prim::RealMul", [("size", realSizeLayout z)])
+         | Real_muladd z => namedRecord ("prim::RealMuladd", [("size", realSizeLayout z)])
+         | Real_mulsub z => namedRecord ("prim::RealMulsub", [("size", realSizeLayout z)])
+         | Real_neg z => namedRecord ("prim::RealNeg", [("size", realSizeLayout z)])
+         | Real_qequal z => namedRecord ("prim::RealQequal", [("size", realSizeLayout z)])
+         | Real_rndToReal (from, to) =>
+            namedRecord ("prim::RealRndToReal",
+                         [("from", realSizeLayout from),
+                          ("to", realSizeLayout to)])
+         | Real_rndToWord (from, to, {signed}) =>
+            namedRecord ("prim::RealRndToWord",
+                         [("from", realSizeLayout from),
+                          ("to", wordSizeLayout to),
+                          ("signed", Bool.layout signed)])
+         | Real_round z => namedRecord ("prim::RealRound", [("size", realSizeLayout z)])
+         | Real_sub z => namedRecord ("prim::RealSub", [("size", realSizeLayout z)])
+         | Ref_assign => namedRecord ("prim::RefAssign", [])
+         | Ref_deref => namedRecord ("prim::RefDeref", [])
+         | Ref_ref => namedRecord ("prim::RefRef", [])
+         | String_toWord8Vector => namedRecord ("prim::StringToWord8Vector", [])
+         | Thread_atomicBegin => namedRecord ("prim::ThreadAtomicBegin", [])
+         | Thread_atomicEnd => namedRecord ("prim::ThreadAtomicEnd", [])
+         | Thread_atomicState => namedRecord ("prim::ThreadAtomicState", [])
+         | Thread_copy => namedRecord ("prim::ThreadCopy", [])
+         | Thread_copyCurrent => namedRecord ("prim::ThreadCopyCurrent", [])
+         | Thread_returnToC => namedRecord ("prim::ThreadReturnToC", [])
+         | Thread_switchTo => namedRecord ("prim::ThreadSwitchTo", [])
+         | TopLevel_getHandler => namedRecord ("prim::TopLevelGetHandler", [])
+         | TopLevel_getSuffix => namedRecord ("prim::TopLevelGetSuffix", [])
+         | TopLevel_setHandler => namedRecord ("prim::TopLevelSetHandler", [])
+         | TopLevel_setSuffix => namedRecord ("prim::TopLevelSetSuffix", [])
+         | Vector_length => namedRecord ("prim::VectorLength", [])
+         | Vector_sub => namedRecord ("prim::VectorSub", [])
+         | Vector_vector => namedRecord ("prim::VectorVector", [])
+         | Weak_canGet => namedRecord ("prim::WeakCanGet", [])
+         | Weak_get => namedRecord ("prim::WeakGet", [])
+         | Weak_new => namedRecord ("prim::WeakNew", [])
+         | Word_add z => namedRecord ("prim::WordAdd", [("size", wordSizeLayout z)])
+         | Word_addCheckP (z, {signed}) =>
+            namedRecord ("prim::WordAddCheckP",
+                         [("size", wordSizeLayout z),
+                          ("signed", Bool.layout signed)])
+         | Word_andb z => namedRecord ("prim::WordAndb", [("size", wordSizeLayout z)])
+         | Word_castToReal (from, to) =>
+            namedRecord ("prim::WordCastToReal",
+                         [("from", wordSizeLayout from),
+                          ("to", realSizeLayout to)])
+         | Word_equal z => namedRecord ("prim::WordEqual", [("size", wordSizeLayout z)])
+         | Word_extdToWord (from, to, {signed}) => 
+            namedRecord ("prim::WordExtdToWord",
+                           [("from", wordSizeLayout from),
+                           ("to", wordSizeLayout to),
+                           ("signed", Bool.layout signed)])
+         | Word_lshift z => namedRecord ("prim::WordLshift", [("size", wordSizeLayout z)])
+         | Word_lt (z, {signed}) =>
+            namedRecord ("prim::WordLt",
+                         [("size", wordSizeLayout z),
+                          ("signed", Bool.layout signed)])
+         | Word_mul (z, {signed}) =>
+            namedRecord ("prim::WordMul",
+                         [("size", wordSizeLayout z),
+                          ("signed", Bool.layout signed)])
+         | Word_mulCheckP (z, {signed}) =>
+            namedRecord ("prim::WordMulCheckP",
+                         [("size", wordSizeLayout z),
+                          ("signed", Bool.layout signed)])
+         | Word_neg z => namedRecord ("prim::WordNeg", [("size", wordSizeLayout z)])
+         | Word_negCheckP (z, {signed}) =>
+            namedRecord ("prim::WordNegCheckP",
+                         [("size", wordSizeLayout z),
+                          ("signed", Bool.layout signed)])
+         | Word_notb z => namedRecord ("prim::WordNotb", [("size", wordSizeLayout z)])
+         | Word_orb z => namedRecord ("prim::WordOrb", [("size", wordSizeLayout z)])
+         | Word_quot (z, {signed}) =>
+            namedRecord ("prim::WordQuot",
+                         [("size", wordSizeLayout z),
+                          ("signed", Bool.layout signed)])
+         | Word_rem (z, {signed}) =>
+            namedRecord ("prim::WordRem",
+                         [("size", wordSizeLayout z),
+                          ("signed", Bool.layout signed)])
+         | Word_rndToReal (from, to, {signed}) =>
+            namedRecord ("prim::WordRndToReal",
+                         [("from", wordSizeLayout from),
+                          ("to", realSizeLayout to),
+                          ("signed", Bool.layout signed)])
+         | Word_rol z => namedRecord ("prim::WordRol", [("size", wordSizeLayout z)])
+         | Word_ror z => namedRecord ("prim::WordRor", [("size", wordSizeLayout z)])
+         | Word_rshift (z, {signed}) =>
+            namedRecord ("prim::WordRshift",
+                         [("size", wordSizeLayout z),
+                          ("signed", Bool.layout signed)])
+         | Word_sub z => namedRecord ("prim::WordSub", [("size", wordSizeLayout z)])
+         | Word_subCheckP (z, {signed}) =>
+            namedRecord ("prim::WordSubCheckP",
+                         [("size", wordSizeLayout z),
+                          ("signed", Bool.layout signed)])
+         | Word_toIntInf => namedRecord ("prim::WordToIntInf", [])
+         | Word_xorb z => namedRecord ("prim::WordXorb", [("size", wordSizeLayout z)])
+         | WordVector_toIntInf => namedRecord ("prim::WordVectorToIntInf", [])
+         | WordArray_subWord {seqSize, eleSize} =>
+            namedRecord ("prim::WordArraySubWord",
+                         [("seq_size", wordSizeLayout seqSize),
+                          ("ele_size", wordSizeLayout eleSize)])
+         | WordArray_updateWord {seqSize, eleSize} =>
+            namedRecord ("prim::WordArrayUpdateWord",
+                         [("seq_size", wordSizeLayout seqSize),
+                          ("ele_size", wordSizeLayout eleSize)])
+         | WordVector_subWord {seqSize, eleSize} =>
+            namedRecord ("prim::WordVectorSubWord",
+                         [("seq_size", wordSizeLayout seqSize),
+                          ("ele_size", wordSizeLayout eleSize)])
+         | Word8Vector_toString => namedRecord ("prim::Word8VectorToString", [])
+         | World_save => namedRecord ("prim::WorldSave", [])
    end
 
 local

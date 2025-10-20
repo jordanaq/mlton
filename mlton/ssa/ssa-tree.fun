@@ -378,7 +378,7 @@ structure Exp =
                   namedRecord ("exp::PrimApp",
                              ([("prim", Prim.layoutFullDemo (prim, Type.layoutDemo)),
                                ("args", layoutArgs args)] @
-                              (if !Control.showTypes
+                              (if true
                                  andalso not (Vector.isEmpty targs)
                                then [("targs", Vector.layout Type.layoutDemo targs)]
                                else [])))

@@ -111,8 +111,8 @@ val string = wordVector o WordXVector.fromString
 
 fun layout c =
    case c of
-      CSymbol s => Layout.seq [Layout.str "CSymbol ", CSymbol.layout s]
-    | IntInf i => Layout.seq [IntInf.layout i, Layout.str ":ii"]
+      CSymbol s => Layout.namedRecord ("const::CSymbol", [("const", CSymbol.layout s)])
+    | IntInf i => Layout.namedRecord ("const::IntInf", [("const", IntInf.layout i)])
     | Null => Layout.str "NULL"
     | Real r => RealX.layout (r, {suffix = true})
     | Word w => WordX.layout (w, {suffix = true})
