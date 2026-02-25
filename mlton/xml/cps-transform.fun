@@ -352,7 +352,7 @@ fun transform (prog: Program.t): Program.t =
          in
             case d of
                Exception _ => Error.bug "CPSTransform.transDec: Exception"
-             | Fun {decs, tyvars} => 
+             | Fun {decs, anns, tyvars} => 
                   let
                      val decs =
                         Vector.map
@@ -360,7 +360,7 @@ fun transform (prog: Program.t): Program.t =
                          {var = var,
                           ty = transType ty,
                           lambda = transLambda lambda})
-                     val d = Fun {decs = decs, tyvars = tyvars}
+                     val d = Fun {decs = decs, anns = anns, tyvars = tyvars}
                   in
                      DirectExp.lett {decs = [d], body = kBody}
                   end

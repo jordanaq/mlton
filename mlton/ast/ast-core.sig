@@ -209,6 +209,10 @@ signature AST_CORE =
              | Fix of {fixity: Fixity.t,
                        ops: Vid.t vector}
              | Fun of {tyvars: Tyvar.t vector,
+                       (* TODO: Use a list of a new annotation datatype or use
+                       * flags instead of a list
+                       *)
+                       anns: string list option,
                        fbs: {body: Exp.t,
                              pats: Pat.t vector,
                              resultType: Type.t option} vector vector}
@@ -233,6 +237,7 @@ signature AST_CORE =
             val layout: t -> Layout.t
             val layoutFun:
                {tyvars: Tyvar.t vector,
+                anns: string list option,
                 fbs: {body: Exp.t,
                       pats: Pat.t vector,
                       resultType: Type.t option} vector vector}

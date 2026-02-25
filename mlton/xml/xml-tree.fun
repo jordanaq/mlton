@@ -205,6 +205,7 @@ and dec =
   | Fun of {decs: {lambda: lambda,
                    ty: Type.t,
                    var: Var.t} vector,
+            anns: string list option,
             tyvars: Tyvar.t vector}
   | MonoVal of {exp: primExp,
                 ty: Type.t,
@@ -231,18 +232,27 @@ in
       case d of
          Exception ca =>
             seq [str "exception ", layoutConArg ca]
-       | Fun {decs, tyvars} =>
-            align (Vector.toListMapi
-                   (decs, fn (i, {lambda, ty, var}) =>
-                    let
-                       val pre =
-                          if i = 0
-                             then seq [str "fun ", layoutTyvars tyvars]
-                             else str "and "
-                    in
-                       mayAlign [maybeConstrain (pre, var, ty, str " ="),
-                                 indent (layoutLambda lambda, 2)]
-                    end))
+       | Fun {decs, anns, tyvars} =>
+            let
+              fun layoutAnnot s =
+                seq [str String.dquote, str (String.escapeSML s), str String.dquote]
+
+              val anns = case anns of
+                  NONE => empty
+                | SOME annots => seq [str "__ann__", tuple (List.map (annots, layoutAnnot))]
+            in
+              align (Vector.toListMapi
+                     (decs, fn (i, {lambda, ty, var}) =>
+                      let
+                         val pre =
+                            if i = 0
+                               then seq [str "fun ", anns, layoutTyvars tyvars]
+                               else str "and "
+                      in
+                         mayAlign [maybeConstrain (pre, var, ty, str " ="),
+                                   indent (layoutLambda lambda, 2)]
+                      end))
+             end
        | MonoVal {exp, ty, var} =>
             mayAlign [maybeConstrain (str "val ", var, ty, str " ="),
                       indent (layoutPrimExp exp, 2)]
@@ -340,12 +350,20 @@ in
       optional (kw "of" *> Type.parse) >>= (fn arg =>
       pure {con = con, arg = arg}))
    val parseArgs = vector VarExp.parse
+   (* TODO: Replace with existing string parser when I find it *)
+   val parseQuotedString =
+     (sym "\"" *> many (nextSat (fn c => c <> #"\"")) <* sym "\"")
+     >>= (fn cs => pure (String.implode cs))
    fun parseDec () =
       mlSpaces *> any
       [Exception <$>
        (kw "exception" *> parseConArg),
        Fun <$>
        (kw "fun" *>
+        optional (kw "__ann__" *>
+                  sym "(" *>
+                  sepBy (delay (fn () => parseQuotedString), sym ",") <*
+                  sym ")") >>= (fn anns =>
         parseTyvars >>= (fn tyvars =>
         sepBy (Var.parse >>= (fn var =>
                sym ":" *>
@@ -354,7 +372,7 @@ in
                delay parseLambda >>= (fn lambda =>
                pure {var = var, ty = ty, lambda = lambda}))),
                kw "and") >>= (fn decs =>
-        pure {tyvars = tyvars, decs = Vector.fromList decs}))),
+        pure {tyvars = tyvars, anns = anns, decs = Vector.fromList decs})))),
        MonoVal <$>
        (kw "val" *>
         Var.parse >>= (fn var =>
@@ -707,11 +725,12 @@ structure Exp =
             and dropProfileDec d =
                case d of
                   Exception arg_con => SOME (Exception arg_con)
-                | Fun {decs, tyvars} =>
+                | Fun {decs, anns, tyvars} =>
                      SOME (Fun {decs = Vector.map
                                 (decs, fn {lambda, ty, var} =>
                                  {lambda = dropProfileLambda lambda,
                                   ty = ty, var = var}),
+                                anns = anns,
                                 tyvars = tyvars})
                 | MonoVal {exp = Profile _, ...} => NONE
                 | MonoVal {exp, ty, var} =>
@@ -745,7 +764,7 @@ structure Exp =
                      (Var.clear var
                       ; clearTyvars tyvars
                       ; clearExp exp)
-                | Fun {tyvars, decs} =>
+                | Fun {tyvars, decs, ...} =>
                      (clearTyvars tyvars
                       ; Vector.foreach (decs, fn {var, lambda, ...} =>
                                         (Var.clear var

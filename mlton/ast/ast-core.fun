@@ -367,6 +367,7 @@ and decNode =
   | Fix of {fixity: Fixity.t,
             ops: Vid.t vector}
   | Fun of {tyvars: Tyvar.t vector,
+            anns: string list option,
             fbs: {body: exp,
                   pats: Pat.t vector,
                   resultType: Type.t option} vector vector}
@@ -547,9 +548,9 @@ and layoutDec d =
     | Fix {fixity, ops} =>
          seq [Fixity.layout fixity, str " ",
               seq (separate (Vector.toListMap (ops, Vid.layout), " "))]
-    | Fun {tyvars, fbs} =>
+    | Fun {tyvars, anns, fbs} =>
          let
-            val fbs = layoutFun {tyvars = tyvars, fbs = fbs}
+            val fbs = layoutFun {tyvars = tyvars, anns = anns, fbs = fbs}
          in
             align (Vector.toListMap (fbs, fn th => th ()))
          end
@@ -573,8 +574,21 @@ and layoutDec d =
                    align (Vector.toListMap (rvbs, fn th => th ()))]
          end
 
-and layoutFun {tyvars, fbs} =
-   layoutTyvarsAndsSusp ("fun", (tyvars, fbs), layoutFb)
+and layoutFun {tyvars, anns, fbs} =
+   let
+     fun layoutAnnot s =
+       seq [str String.dquote, str (String.escapeSML s), str String.dquote]
+
+     (* TODO: Remove the Layout.toString and use layouts all the way for proper
+     * indentation
+     *)
+     val anns =
+       case anns of
+          NONE => empty
+        | SOME annots => seq [str "__ann__", tuple (List.map (annots, layoutAnnot))] 
+   in
+     layoutTyvarsAndsSusp (("fun " ^ (toString anns)), (tyvars, fbs), layoutFb)
+   end
 
 and layoutFb clauses =
    alignPrefix (Vector.toListMap (clauses, layoutClause), "| ")

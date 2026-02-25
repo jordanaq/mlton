@@ -114,6 +114,8 @@ signature XML_TREE =
              | Fun of {decs: {lambda: Lambda.t,
                               ty: Type.t,
                               var: Var.t} vector,
+                       (* TODO: Use a list of datatypes of flags *)
+                       anns: string list option,
                        tyvars: Tyvar.t vector}
              | MonoVal of {exp: PrimExp.t,
                            ty: Type.t,

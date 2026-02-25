@@ -169,6 +169,7 @@ datatype dec =
                  con: Con.t}
  | Fun of {decs: {lambda: lambda,
                   var: Var.t} vector,
+           anns: string list option,
            tyvars: unit -> Tyvar.t vector}
  | Val of {matchDiags: {nonexhaustiveExn: Control.Elaborate.DiagDI.t,
                         nonexhaustive: Control.Elaborate.DiagEIW.t,
@@ -250,6 +251,7 @@ in
                                        "| "))]))]
        | Exception ca =>
             seq [str "exception ", layoutConArg ca]
+       (* TODO: Add annotations to layout *)
        | Fun {decs, tyvars, ...} => layoutFuns (tyvars, decs)
        | Val {rvbs, tyvars, vbs, ...} =>
             align [layoutFuns (tyvars, rvbs),
@@ -460,6 +462,7 @@ structure Exp =
             make
             (Let (Vector.new1 (Fun {decs = Vector.new1 {lambda = lambda,
                                                         var = loop},
+                                    anns = NONE,
                                     tyvars = fn () => Vector.new0 ()}),
                   call),
              Type.unit)
@@ -551,10 +554,11 @@ structure Dec =
                case d of
                   Datatype _ => d
                 | Exception _ => d
-                | Fun {decs, tyvars} =>
+                | Fun {decs, anns, tyvars} =>
                      Fun {decs = Vector.map (decs, fn {lambda, var} =>
                                              {lambda = loopLambda lambda,
                                               var = var}),
+                          anns = anns,
                           tyvars = tyvars}
                 | Val {matchDiags, rvbs, tyvars, vbs} =>
                      Val {matchDiags = matchDiags,

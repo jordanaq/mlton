@@ -376,7 +376,7 @@ fun transform (program as Program.T {datatypes, body},
                                         :: decs),
                                 result = result}
                             end)
-                | Fun {decs, ...} =>
+                | Fun {decs, anns, ...} =>
                      let
                         val _ = Vector.foreach (decs, new)
                         val {decs = ds, result} = loopDecs (ds, result)
@@ -417,6 +417,7 @@ fun transform (program as Program.T {datatypes, body},
                              end))
                         val decs = Vector.concat (!ac)
                      in {decs = Fun {tyvars = Vector.new0 (),
+                                     anns = anns, (* TODO: Preserves? *)
                                      decs = decs} :: ds,
                          result = result}
                      end

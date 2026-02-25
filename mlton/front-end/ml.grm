@@ -160,6 +160,8 @@ fun consTopdec (d, dss) =
       [] => [[d]]
     | ds :: dss => (d :: ds) :: dss
 
+type decAnnotation = string list
+
 type rule = Pat.t * Exp.t
 type clause = {pats : Pat.t vector,
                resultType : Type.t option,
@@ -254,7 +256,7 @@ type 'a whereAndEqns = WhereEquation.t list * 'a list
     | WORD of {digits: string,
                radix: StringCvt.radix,
                yytext: string}
-    | ABSTYPE | AND | ANDALSO | ARROW | AS | ASTERISK | BAR | CASE | COLON
+    | ABSTYPE | AND | ANDALSO | ANN | ARROW | AS | ASTERISK | BAR | CASE | COLON
     | COLONGT | COMMA | DATATYPE | DOTDOTDOT | ELSE | END | EOF | EQUALOP
     | EQTYPE | EXCEPTION | DO | DARROW | FN | FUN | FUNCTOR | HANDLE | HASH
     | HASHLBRACKET | IF | IN | INCLUDE | INFIX | INFIXR | LBRACE | LBRACKET | LET
@@ -275,6 +277,8 @@ type 'a whereAndEqns = WhereEquation.t list * 'a list
        | apats of Pat.t list
        | app_exp of Exp.t list
        | arg_fct of Strexp.t
+       | ann_args of decAnnotation
+       | decannotation of decAnnotation option
        | ieattributes of PrimKind.ImportExportAttribute.t list
        | barcpats of Pat.t list
        | clause of clause
@@ -463,7 +467,7 @@ type 'a whereAndEqns = WhereEquation.t list * 'a list
   IF IN INCLUDE  INFIX  INFIXR  LET  LOCAL  NONFIX  OF  OP
   OPEN OVERLOAD  RAISE  REC  SHARING  SIG  SIGNATURE  STRUCT
   STRUCTURE THEN TYPE VAL WHILE WHERE WITH WITHTYPE
-  ORELSE ANDALSO
+  ORELSE ANDALSO ANN
 
 %change -> VAL | -> THEN | -> ELSE | -> LPAREN | -> SEMICOLON | 
         DARROW -> EQUALOP | EQUALOP -> DARROW | AND -> ANDALSO | COLON -> OF |
@@ -758,8 +762,12 @@ decnolocal
                                              vbs = #1 valbindTop,
                                              rvbs = #2 valbindTop})
         | DO exp                (Dec.DoDec exp)
-        | FUN funs              (Dec.Fun {tyvars = Vector.new0 (), fbs = Vector.fromList funs})
-        | FUN tyvarseq funs     (Dec.Fun {tyvars = tyvarseq, fbs = Vector.fromList funs})
+        | FUN decannotation funs              (Dec.Fun {tyvars = Vector.new0 (),
+                                               anns = decannotation,
+                                               fbs = Vector.fromList funs})
+        | FUN decannotation tyvarseq funs     (Dec.Fun {tyvars = tyvarseq,
+                                                        anns = decannotation,
+                                                        fbs = Vector.fromList funs})
         | TYPE typBind          (Dec.Type typBind)
         | DATATYPE datatypeRhs  (Dec.Datatype datatypeRhs)
         | ABSTYPE datBind WITH decs END   (Dec.Abstype {datBind = datBind,
@@ -774,6 +782,13 @@ decnolocal
                                                Vector.new0 (),
                                                ty,
                                                Vector.fromList longvidands))
+
+decannotation :           (NONE)
+              | ANN LPAREN ann_args RPAREN (SOME ann_args)
+
+ann_args : string           ([string])
+         | string COMMA ann_args (string :: ann_args)
+
 
 valbindTop : valbind (let
                          val (vbs, rvbs) = valbind

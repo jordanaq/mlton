@@ -15,6 +15,7 @@ open S
 structure ImplementExceptions = ImplementExceptions (open S)
 structure ImplementSuffix = ImplementSuffix (open S)
 structure Polyvariance = Polyvariance (open S)
+structure LambdaSetSpecialization = LambdaSetSpecialization (open S)
 (* structure Uncurry = Uncurry (open S) *)
 structure CPSTransform = CPSTransform (open S)
 
@@ -37,6 +38,7 @@ val sxmlPassesDefault =
    (* {name = "uncurry", doit = Uncurry.transform, execute = true} :: *)
    (* {name = "sxmlShrink4", doit = S.shrink, execute = true} :: *)
    {name = "polyvariance", doit = Polyvariance.transform, execute = true} ::
+   {name = "lambda-set-specialization", doit = LambdaSetSpecialization.transform, execute = false} ::
    {name = "sxmlShrink4", doit = S.shrink, execute = true} ::
    nil
 

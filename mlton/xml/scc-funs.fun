@@ -82,7 +82,7 @@ fun sccFuns (Program.T {datatypes, body}) =
                        PolyVal {var = var, tyvars = tyvars, ty = ty,
                                 exp = loopExp exp} :: decs
                   | Exception _ => dec :: decs
-                  | Fun {tyvars, decs = lambdas} =>
+                  | Fun {tyvars, anns, decs = lambdas} =>
                        let val g = Graph.new ()
                           val _ =
                              Vector.foreach
@@ -117,6 +117,7 @@ fun sccFuns (Program.T {datatypes, body}) =
                        in List.map
                           (Graph.stronglyConnectedComponents g, fn nodes =>
                            Fun {tyvars = tyvars,
+                                anns = anns, (* TODO: Does this preserve *)
                                 decs = Vector.fromListMap (nodes, nodeLambda)})
                           @ decs
                        end))

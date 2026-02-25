@@ -166,6 +166,12 @@ signature CORE_ML =
                              con: Con.t}
              | Fun of {decs: {lambda: Lambda.t,
                               var: Var.t} vector,
+                       (* TODO: Replace with list of datatype or flags. Also
+                       * the unit of specialization annotation may not validly
+                       * flow through all transformations where we construct new
+                       * Funs.
+                       *)
+                       anns: string list option,
                        tyvars: unit -> Tyvar.t vector}
              | Val of {matchDiags: {nonexhaustiveExn: Control.Elaborate.DiagDI.t,
                                     nonexhaustive: Control.Elaborate.DiagEIW.t,

@@ -70,6 +70,7 @@ val BAR:  'a * 'a -> (svalue,'a) token
 val ASTERISK:  'a * 'a -> (svalue,'a) token
 val AS:  'a * 'a -> (svalue,'a) token
 val ARROW:  'a * 'a -> (svalue,'a) token
+val ANN:  'a * 'a -> (svalue,'a) token
 val ANDALSO:  'a * 'a -> (svalue,'a) token
 val AND:  'a * 'a -> (svalue,'a) token
 val ABSTYPE:  'a * 'a -> (svalue,'a) token

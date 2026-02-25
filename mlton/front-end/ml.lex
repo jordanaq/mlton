@@ -307,6 +307,8 @@ real=(~?)(({decnum}{frac}?{exp})|({decnum}{frac}{exp}?));
 <INITIAL>"_prim" => (tok (Tokens.PRIM, yytext, source, yypos));
 <INITIAL>"_symbol" => (tok (Tokens.SYMBOL, yytext, source, yypos));
 
+<INITIAL>"__ann__" => (tok (Tokens.ANN, yytext, source, yypos));
+
 <INITIAL>"#" => (tok (Tokens.HASH, yytext, source, yypos));
 <INITIAL>"#[" => (tok (Tokens.HASHLBRACKET, yytext, source, yypos));
 <INITIAL>"(" => (tok (Tokens.LPAREN, yytext, source, yypos));

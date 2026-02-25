@@ -375,7 +375,7 @@ fun monomorphise (Xprogram.T {datatypes, body, ...}): Sprogram.t =
                                            exp = SprimExp.Var result} :: decs)
                        end))
                 end
-           | Xdec.Fun {tyvars, decs} =>
+           | Xdec.Fun {tyvars, anns, decs} =>
                 let
                    val cache = Cache.new ()
                    val _ =
@@ -396,6 +396,7 @@ fun monomorphise (Xprogram.T {datatypes, body, ...}): Sprogram.t =
                                       setVar (var, fn _ => ve))
                      ; (Sdec.Fun
                         {tyvars = Vector.new0 (),
+                         anns = anns,
                          decs = (Vector.map2
                                  (decs, xs, fn ({ty, lambda, ...}, ve) =>
                                   let

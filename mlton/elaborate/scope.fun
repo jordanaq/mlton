@@ -222,7 +222,7 @@ fun ('down, 'up)
                      (d, u)
                   end
              | Fix _ => empty ()
-             | Fun {tyvars, fbs} =>
+             | Fun {tyvars, anns, fbs} =>
                   let
                      val (down, finish) = bindFunVal (down, tyvars, Dec.region d)
                      val (fbs, u) =
@@ -249,7 +249,7 @@ fun ('down, 'up)
                                  end)
                      val (tyvars, u) = finish u
                   in
-                     (doit (Fun {tyvars = tyvars, fbs = fbs}), u)
+                     (doit (Fun {tyvars = tyvars, anns = anns, fbs = fbs}), u)
                   end
              | Local (d, d') =>
                   do2 (loopDec (d, down), loopDec (d', down), Local)

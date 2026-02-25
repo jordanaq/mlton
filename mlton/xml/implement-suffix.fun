@@ -35,8 +35,9 @@ fun transform (Program.T {datatypes, body, ...}): Program.t =
       and loopDec (dec: Dec.t): Dec.t =
          case dec of
             MonoVal b => loopMonoVal b
-          | Fun {decs, ...} =>
+          | Fun {decs, anns,...} =>
                Fun {tyvars = Vector.new0 (),
+                    anns = anns,
                     decs = Vector.map (decs, fn {var, ty, lambda} =>
                                        {var = var,
                                         ty = ty,

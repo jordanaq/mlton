@@ -2346,7 +2346,7 @@ fun elaborateDec (d, {env = E, nest}) =
                       (Vector.foreach (ops, fn op' =>
                                        Env.extendFix (E, op', fixity))
                        ; Decs.empty)
-                 | Adec.Fun {tyvars = tyvars, fbs} =>
+                 | Adec.Fun {tyvars = tyvars, anns, fbs} =>
                       let
                          val close = TypeEnv.close {region = region}
                       in
@@ -2358,7 +2358,7 @@ fun elaborateDec (d, {env = E, nest}) =
                              val {markFunc, setBound, unmarkFunc} = recursiveFun ()
                              val fbs =
                                 Vector.map2
-                                (fbs, Adec.layoutFun {tyvars = tyvars, fbs = fbs}, fn (clauses, layFb) =>
+                                (fbs, Adec.layoutFun {tyvars = tyvars, anns = anns, fbs = fbs}, fn (clauses, layFb) =>
                                  let
                                     val ctxtFb = fn () =>
                                        seq [str "in: ", approximate (layFb ())]
@@ -2711,6 +2711,7 @@ fun elaborateDec (d, {env = E, nest}) =
                           in
                              Decs.single
                              (Cdec.Fun {decs = decs,
+                                        anns = anns,
                                         tyvars = bound})
                           end)
                       end

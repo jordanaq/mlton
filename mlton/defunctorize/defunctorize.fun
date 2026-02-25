@@ -485,6 +485,7 @@ structure Xexp =
                      {decs = Vector.new1 {lambda = revLambda,
                                           ty = revTy,
                                           var = revVar},
+                      anns = NONE,
                       tyvars = Vector.new0 ()}
                   val l = Var.newNoname ()
                   val (l, body) =
@@ -747,8 +748,9 @@ fun defunctorize (CoreML.Program.T {decs}) =
              | Exception {arg, con} =>
                   prefix (Xdec.Exception {arg = Option.map (arg, loopTy),
                                           con = con})
-             | Fun {decs, tyvars} =>
+             | Fun {decs, anns, tyvars} =>
                   prefix (Xdec.Fun {decs = processLambdas decs,
+                                    anns = anns, 
                                     tyvars = tyvars ()})
              | Val {matchDiags, rvbs, tyvars, vbs} =>
                let
@@ -920,6 +922,11 @@ fun defunctorize (CoreML.Program.T {decs}) =
                      then e
                   else
                      Xexp.lett {decs = [Xdec.Fun {decs = processLambdas rvbs,
+                                                  (* TODO: Am I missing where
+                                                  * anns might flow from to
+                                                  * here?
+                                                  *)
+                                                  anns = NONE,
                                                   tyvars = tyvars}],
                                 body = e}
                end

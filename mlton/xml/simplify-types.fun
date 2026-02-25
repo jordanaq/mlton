@@ -199,7 +199,7 @@ fun simplifyTypes (I.Program.T {body, datatypes}) =
             I.Dec.Exception {arg, con} =>
                O.Dec.Exception {arg = Option.map (arg, fixType),
                                 con = con}
-          | I.Dec.Fun {decs, tyvars} =>
+          | I.Dec.Fun {decs, anns, tyvars} =>
                let
                   val decs =
                      Vector.map (decs, fn {lambda, ty, var} =>
@@ -213,6 +213,7 @@ fun simplifyTypes (I.Program.T {body, datatypes}) =
                      (decs, fn {var, ...} => setVarKeep (var, SOME bv))
                in
                   O.Dec.Fun {decs = decs,
+                             anns = anns, (* TODO: Does this preserve? *)
                              tyvars = tyvars}
                end
           | I.Dec.MonoVal {exp, ty, var} =>

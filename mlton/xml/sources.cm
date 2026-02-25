@@ -44,6 +44,7 @@ monomorphise.fun
 sxml-tree.sig
 implement-exceptions.fun
 implement-suffix.fun
+lambda-set-specialization.fun
 polyvariance.fun
 cps-transform.fun
 sxml-simplify.sig

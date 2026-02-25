@@ -219,8 +219,9 @@ fun transform (Program.T {datatypes, body, ...}): Program.t =
          (fn (dec: Dec.t) =>
          case dec of
             MonoVal b => loopMonoVal b
-          | Fun {decs, ...} =>
+          | Fun {decs, anns, ...} =>
                [Fun {tyvars = Vector.new0 (),
+                     anns = anns, (* TODO: Preserves ? *)
                      decs = Vector.map (decs, fn {var, ty, lambda} =>
                                         {var = var,
                                          ty = ty,

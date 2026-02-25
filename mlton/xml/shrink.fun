@@ -263,7 +263,7 @@ fun shrinkOnce (Program.T {datatypes, body}) =
                      Dec.PolyVal {var = var, tyvars = tyvars, ty = ty,
                                   exp = shrinkExp exp}
                      :: shrinkDecs decs
-                | Fun {tyvars, decs = decs'} =>
+                | Fun {tyvars, anns, decs = decs'} =>
                      if Vector.isEmpty tyvars
                         then
                            let
@@ -308,6 +308,7 @@ fun shrinkOnce (Program.T {datatypes, body}) =
                                  then decs
                               else
                                  Dec.Fun {tyvars = tyvars,
+                                          anns = anns,
                                           decs =
                                           Vector.map
                                           (decs', fn {var, ty, lambda} =>
@@ -318,6 +319,7 @@ fun shrinkOnce (Program.T {datatypes, body}) =
                            end
                      else
                         Dec.Fun {tyvars = tyvars,
+                                 anns = anns,
                                  decs =
                                  Vector.map
                                  (decs', fn {var, ty, lambda} =>
