@@ -239,7 +239,7 @@ in
 
               val anns = case anns of
                   NONE => empty
-                | SOME annots => seq [str "__ann__", tuple (List.map (annots, layoutAnnot))]
+                | SOME annots => seq [str "__ann__", tuple (List.map (annots, layoutAnnot)), str " "]
             in
               align (Vector.toListMapi
                      (decs, fn (i, {lambda, ty, var}) =>
@@ -363,7 +363,7 @@ in
         optional (kw "__ann__" *>
                   sym "(" *>
                   sepBy (delay (fn () => parseQuotedString), sym ",") <*
-                  sym ")") >>= (fn anns =>
+                  sym ") ") >>= (fn anns =>
         parseTyvars >>= (fn tyvars =>
         sepBy (Var.parse >>= (fn var =>
                sym ":" *>

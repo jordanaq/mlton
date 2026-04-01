@@ -13,90 +13,222 @@ open S
 datatype z = datatype Dec.t
 datatype z = datatype PrimExp.t
 
+structure Graph = DirectedGraph
+structure Node = Graph.Node
+
 
 fun transform (Program.T {datatypes, body, ...}): Program.t =
-  let
-    (*
-    fun loopExp (e: Exp.t): unit =
-      let
-        val {decs, ...} = Exp.dest e
-        val _ = print "Debug exp\n"
-      in
-        List.foreach (decs, loopDec)
-      end
+let
+  type lsArgId = Var.t
+  type lsArgToType = (lsArgId * Type.t) vector
+  type conToLsArgs = (Con.t * lsArgId vector) vector
 
-    and loopDec (d: Dec.t): unit =
-      case d of
-         MonoVal {exp, ...}  => loopPrimExp exp
-       | PolyVal {exp, ...} => loopExp exp
-       | Exception _ => ()
-       | Fun {anns, decs, ...} =>
-           let
-             val _ = Vector.foreach (decs, fn {lambda, ...} => loopLambda lambda)
-             val _ = print "Debug dec\n"
-           in
-             (case anns of
-                 NONE => ()
-               | SOME _ => Vector.foreach (decs, fn {var, ...} =>
-                     print ((Var.toString var) ^ "\n")))
-            end
+  (* TODO: Swap to use something other than Var *)
+  fun newLsArg () = Var.newString "ls_arg_"
 
-    and loopPrimExp (e: PrimExp.t): unit =
-      case e of
-       | PrimExp.Lambda l => loopLambda l
-       | PrimExp.Handle {try, handler, ...} =>
-           (loopExp try; loopExp handler)
-       | PrimExp.Case {cases, default, ...} =>
-           (Cases.foreach (cases, loopExp)
-            ; Option.app (default, loopExp))
-       | _ => ()
+  (* datatype -> Con.t to LS arg IDs vector *)
+  val {get = getDatatypeAnnotations: Tycon.t -> conToLsArgs option,
+       set = setDatatypeAnnotations, ...} =
+    Property.getSetOnce (Tycon.plist, Property.initConst NONE)
 
-    and loopLambda (l: Lambda.t): unit =
-      let
-        val {body, ...} = Lambda.dest l
-      in
-        loopExp body
-      end
-    *)
+  (* constructor -> LS arg ID LS arg ID & type IDs *)
+  val {get = getConAnnotations: Con.t -> lsArgToType option,
+       set = setConAnnotations, ...} =
+    Property.getSetOnce (Con.plist, Property.initConst NONE)
 
-    val newTypeVar = Var.newString "a_"
+  (*
+   * LS arg id -> set of possible lambads
+   * TODO: check memory-safeness
+   *)
+  val {get = getLsArgLambdas: lsArgId -> Lambda.t list ref, ...} =
+    Property.get (Var.plist, Property.initFun (fn _ => ref []))
 
-    fun containsArrow t = Type.containsTycon (t, Tycon.arrow)
-
-    fun annotateDatatypes datatypes =
+  fun addLambdaToLsArg (lsArg: lsArgId, lambda: Lambda.t): unit =
     let
-      val d : (Tycon.t, {lsv: Var.t, con: {arg: Type.t option, con: Con.t}} vector) HashTable.t =
-        HashTable.new {hash = Tycon.hash, equals = Tycon.equals}
-
-      fun getArrowCons (cons: {arg: Type.t option, con: Con.t} vector) =
-        Vector.fromList
-          (Vector.foldr (cons, [],
-                         fn ({arg, con}, xs) => (* refactor to be less confusing *)
-                           case arg of
-                              SOME ty => if containsArrow ty then
-                                ({arg=arg, con=con} :: xs) else xs
-                            | _ => xs))
-      
-      fun f ({cons, tycon, ...}) = (* TODO: Handle tyvars *)
-      let
-        val arrowCons = getArrowCons (cons)
-
-        (* TODO: Check logic as we have our lsv and our con in one record *)
-        val annotArrowCons = Vector.map (arrowCons, fn con => {lsv = newTypeVar, con = con}) 
-      in
-        ignore (HashTable.lookupOrInsert (d, tycon, fn () => annotArrowCons))
-      end
-
-      val _ = Vector.map (datatypes, f)
+      val lambdas = getLsArgLambdas lsArg
     in
-      d
+      if List.exists (!lambdas, fn l => Lambda.equals (l, lambda))
+        then ()
+        else List.push (lambdas, lambda)
     end
 
-    val d = annotateDatatypes datatypes
+  (* Create fresh LS args for  arrow-typed subterms in a con arg type *)
+  fun collectArrowTypes (t: Type.t): Type.t vector =
+    let
+      fun f (t: Type.t, acc: Type.t list): Type.t list =
+        case Type.dest t of
+           Type.Var _ => acc
+         | Type.Con (tycon, tys) =>
+             let
+               (* Do not look for nested arrow types, these will not be
+                * specializable
+                *)
+               val ac = if Tycon.equals (tycon, Tycon.arrow)
+                 then t::acc
+                 else acc
+             in
+               Vector.fold (tys, acc, f)
+             end
+    in
+      Vector.fromListRev (f (t, []))
+    end
+  
+  (* Annotate just the explicit arrow types in a datatype's cons *)
+  fun annotateDatatype {cons, tycon, ...} =
+    let
+      val _ = print ("LSS annotating datatype " ^ Tycon.toString tycon ^ "\n")
+
+      fun annotateCon ({arg, con}: {arg: Type.t option, con: Con.t}) =
+        let
+          val argTypesWithArrows =
+            case arg of
+               NONE => Vector.new0 ()
+             | SOME t => collectArrowTypes t
+          val lsArgIds = Vector.map (argTypesWithArrows, fn _ => newLsArg ())
+
+          val _ = print ("  con " ^ Con.toString con ^ " has " ^
+                         Int.toString (Vector.length argTypesWithArrows) ^
+                         " arrows\n")
+
+          val conAnnotations =
+            Vector.map2 (lsArgIds,
+                         argTypesWithArrows,
+                         fn (lsArg, argTy) => (lsArg, argTy))
+          val _ =
+            setConAnnotations (con,
+                               if Vector.isEmpty conAnnotations
+                                 then NONE
+                                 else SOME conAnnotations)
+          val _ = Vector.foreach (lsArgIds, fn lsArg => ignore (getLsArgLambdas lsArg))
+        in
+          (con, lsArgIds)
+        end
+
+      val datatypeAnnotations = Vector.map (cons, annotateCon)
+
+      val _ = print ("Finished datatype " ^ Tycon.toString tycon ^ "\n")
+    in
+      setDatatypeAnnotations (tycon, SOME datatypeAnnotations)
+    end
+
+  (* g has edges between tycons that have a dependency *)
+  val g = Graph.new ()
+  val {get = getTyconNode: Tycon.t -> unit Node.t option,
+       set = setTyconNode, ...} =
+    Property.getSetOnce (Tycon.plist, Property.initConst NONE)
+
+  (* I dont remember why I made two way thing instead of using Tycon.t Node.t *)
+  val {get = getNodeTycon: unit Node.t -> Tycon.t,
+       set = setNodeTycon, ... } =
+    Property.getSetOnce (Node.plist,
+                         Property.initRaise
+                         ("LambdaSetSpecialization.nodeTycon", Node.layout))
+  
+  fun ensureTyconNode (tycon: Tycon.t): unit Node.t =
+    case getTyconNode tycon of
+       SOME node => node
+     | NONE => let
+                 val node = Graph.newNode g
+                 val _ = setTyconNode (tycon, SOME node)
+                 val _ = setNodeTycon (node, tycon)
+               in
+                 node
+               end
+
+  fun datatypeHasLsArgs (tycon: Tycon.t): bool =
+    case getDatatypeAnnotations tycon of
+       NONE => false
+     | SOME conMap => Vector.exists (conMap,
+                                     fn (_, lsArgs) =>
+                                       not (Vector.isEmpty lsArgs))
+
+  fun referencedTyconsInType (t: Type.t): Tycon.t list =
+    let
+      fun f (ty: Type.t, acc: Tycon.t list): Tycon.t list=
+        case Type.dest ty of
+           Type.Var _ => acc
+         | Type.Con (tycon, tys) =>
+             Vector.fold (tys, tycon :: acc, f)
+    in
+      f (t, [])
+    end
+
+  fun addDatatypeEdges {cons, tycon = fromTycon, ...}: unit =
+    let
+      val _ = print ("LSS datatype graph edges from " ^ Tycon.toString fromTycon ^ "\n")
+      val _ =
+        if (datatypeHasLsArgs fromTycon)
+          then ignore (ensureTyconNode fromTycon)
+          else ()
+
+      val referencedTycons =
+        Vector.fold (cons, [],
+                     fn ({arg, ...}, acc) =>
+                       case arg of
+                          NONE => acc
+                        | SOME t => List.append (referencedTyconsInType t, acc))
+
+      val seen: Tycon.t list ref = ref []
+      fun hasSeen tycon = 
+        if List.exists (!seen, fn tyconOther => Tycon.equals (tycon, tyconOther))
+          then true
+          else (ignore (List.push (seen, tycon)); false)
 
 
-  in
-    Program.T {datatypes = datatypes, body = body}
-  end
+      val _ = List.foreach
+        (referencedTycons,
+         fn toTycon =>
+           if ((not (Tycon.equals (fromTycon, toTycon)))
+               andalso datatypeHasLsArgs toTycon
+               andalso (not (hasSeen toTycon)))
+             then
+               let
+                 val _ = print("  to " ^ Tycon.toString toTycon ^ "\n")
+                 val fromNode = ensureTyconNode fromTycon
+                 val toNode = ensureTyconNode toTycon
+                 val _ = Graph.addEdge (g, {from = fromNode, to = toNode})
+               in 
+                 ()
+               end
+             else ())
+      val _ = print ("LSS datatype finished graph edges from " ^ Tycon.toString fromTycon ^ "\n")
+    in
+      ()
+    end
+
+  (* First, annotate the explicit arrow types *)
+  val _ = Vector.foreach (datatypes, annotateDatatype)
+
+  (* Add the datatype dependencies to the graph *)
+  val _ = Vector.foreach (datatypes, addDatatypeEdges)
+
+  val _ = print ("datatype graph dump begin\n")
+  val _ =
+    Graph.display
+    {graph = g,
+     layoutNode = (fn node =>
+       let
+         val tycon = getNodeTycon node
+         val lsLayout =
+           case getDatatypeAnnotations tycon of
+              NONE => Layout.str "none"
+            | SOME conMap =>
+                Layout.vector
+                  (Vector.map (conMap,
+                               fn (con, lsArgs) =>
+                                 Layout.seq [Con.layout con,
+                                             Layout.str ":",
+                                             Layout.vector (Vector.map
+                                               (lsArgs, Var.layout))]))
+       in
+         Layout.seq [Tycon.layout tycon, Layout.str " lsArgs=", lsLayout]
+       end),
+     display = fn l => print (Layout.toString l ^ "\n")}
+  val _ = print ("datatype graph dump end\n")
+  
+  fun layoutLssTransform (Program.T {datatypes, body, ...}) = ()
+in
+  Program.T { datatypes = datatypes, body = body }
+end
 
 end
