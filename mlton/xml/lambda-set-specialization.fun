@@ -59,6 +59,7 @@ let
        set = setConAnnotations, ...} =
     Property.getSetOnce (Con.plist, Property.initConst NONE)
 
+  (* Tycon to list of tycons in an SCC *)
   val {get = getTyconSccMembers: Tycon.t -> Tycon.t list,
        set = setTyconSccMembers, ...} =
     Property.getSetOnce (Tycon.plist, Property.initConst [])
@@ -227,6 +228,7 @@ let
                                      fn (_, lsArgs) =>
                                        not (Vector.isEmpty lsArgs))
 
+  (* Accumulates lsArgs from the list of constructors *)
   fun datatypeLsArgsByTycon (tycon: Tycon.t): lsArgId list =
     let
       fun f (lsArg: lsArgId, acc: lsArgId list): lsArgId list =
@@ -242,7 +244,8 @@ let
                           fn ((_, lsArgs), acc) =>
                             Vector.fold (lsArgs, acc, f)))
     end
-
+  
+  (* Get the list of tycons referenced in type *)
   fun referencedTyconsInType (t: Type.t): Tycon.t list =
     let
       fun f (ty: Type.t, acc: Tycon.t list): Tycon.t list=
@@ -263,11 +266,14 @@ let
            [Layout.str "Adding graph edges from",
             Tycon.layout fromTycon,
             Layout.str "\n"])
+
+      (* Ensure a node if fromTycon has ls args *)
       val _ =
         if (datatypeHasLsArgs fromTycon)
           then ignore (ensureTyconNode fromTycon)
           else ()
 
+      (* Accumulate all referenced tycons *)
       val referencedTycons =
         Vector.fold (cons, [],
                      fn ({arg, ...}, acc) =>
@@ -281,7 +287,7 @@ let
           then true
           else (ignore (List.push (seen, tycon)); false)
 
-
+      (* Create an edge when fromTycon references a toTycon with lsArgs *)
       val _ = List.foreach
         (referencedTycons,
          fn toTycon =>
@@ -305,6 +311,7 @@ let
                  ()
                end
              else ())
+
       val _ =
         debug (fn () =>
           Layout.seq
@@ -315,17 +322,21 @@ let
       ()
     end
 
+  (* Get the unique datatype associated with `target` *)
   fun findDatatypeByTycon (target: Tycon.t) =
     Vector.peek (datatypes, fn {tycon, ...} => Tycon.equals (tycon, target))
 
+  (* Prepend lsArg if not in acc *)
   fun addUniqueLsArgRev (lsArg: lsArgId, acc: lsArgId list): lsArgId list =
     if List.exists (acc, fn seen => Var.equals (seen, lsArg))
       then acc
       else lsArg::acc
 
+  (* Adds extras to base list of lsArgs *)
   fun mergeLsArgsInOrder (base: lsArgId list, extras: lsArgId list): lsArgId list =
     List.rev (List.fold (extras, List.rev base, addUniqueLsArgRev))
 
+  (* Freshens a list of ls args *)
   fun freshLsArgsFromTemplate (template: lsArgId list): lsArgId list =
     List.map
       (template,
@@ -338,12 +349,11 @@ let
        end)
 
 
-  (* Annotate all the constructors in a list of targets that reference from
-   * TODO: This should probably create a new LS ID
-   *)
+  (* Annotate all the constructors in a list of targets that reference from *)
   fun annotateConstructorsReferencingTycons
     (fromTycon: Tycon.t,
-     targetTycons: Tycon.t list): unit =
+     targetTycons: Tycon.t list,
+     isIntraScc: bool): unit =
     let
       val propagatedLsArgs =
         List.rev
@@ -352,58 +362,69 @@ let
                         List.fold (getDatatypeLsArgs targetTycon,
                                    acc,
                                    addUniqueLsArgRev)))
+
       fun isTargetTycon (tycon: Tycon.t): bool =
         List.exists (targetTycons, fn target => Tycon.equals (target, tycon))
+
       fun referencesTargetTycon (arg: Type.t option): bool =
         case arg of
            NONE => false
          | SOME t => List.exists (referencedTyconsInType t, isTargetTycon)
+
+      (* merge two lists of ls args but freshen if existing and extras dont
+       * share an scc
+       *)
       fun mergeFresh (existing: lsArgId vector, extras: lsArgId list): lsArgId vector =
         let
-          val existing = Vector.toList existing
-          val extrasFresh = List.map (extras, fn _ =>
-                                              let
-                                                val id = newLsArg ()
-                                                val _ = ignore (getLsArgFuns id)
-                                              in
-                                                id
-                                              end)
-          val merged = mergeLsArgsInOrder (existing, extrasFresh)
+          val merged = if isIntraScc
+            then extras
+            else
+              let
+                val existing = Vector.toList existing
+                val extrasFresh =
+                  List.map (extras, fn _ =>
+                                    let
+                                      val id = newLsArg ()
+                                      val _ = ignore (getLsArgFuns id)
+                                    in
+                                      id
+                                    end)
+              in
+                mergeLsArgsInOrder (existing, extrasFresh)
+              end
         in
           Vector.fromList merged
         end
     in
-        case findDatatypeByTycon fromTycon of
-           NONE => ()
-         | SOME {cons, ...} =>
-             let
-               val referencingCons =
-                 Vector.fold (cons, [],
-                              fn ({arg, con}, acc) =>
-                                if referencesTargetTycon arg
-                                  then con :: acc
-                                  else acc)
-               fun shouldAnnotateCon (con: Con.t): bool =
-                 List.exists (referencingCons, fn c => Con.equals (c, con))
-             in
-               case getDatatypeAnnotationsMap fromTycon of
-                  NONE => ()
-                | SOME conMap =>
-                    setDatatypeAnnotationsMap
-                      (fromTycon,
-                       SOME (Vector.map
-                         (conMap,
-                          fn (con, oldLsArgs) =>
-                            if shouldAnnotateCon con
-                              then (con, mergeFresh (oldLsArgs, propagatedLsArgs))
-                              else (con, oldLsArgs))))
-             end
+      case findDatatypeByTycon fromTycon of
+         NONE => () (* Unreachable *)
+       | SOME {cons, ...} =>
+           let
+             val referencingCons =
+               Vector.fold (cons, [],
+                            fn ({arg, con}, acc) =>
+                              if referencesTargetTycon arg
+                                then con :: acc
+                                else acc)
+             fun shouldAnnotateCon (con: Con.t): bool =
+               List.exists (referencingCons, fn c => Con.equals (c, con))
+           in
+             case getDatatypeAnnotationsMap fromTycon of
+                NONE => ()
+              | SOME conMap =>
+                  setDatatypeAnnotationsMap
+                    (fromTycon,
+                     SOME (Vector.map
+                       (conMap,
+                        fn (con, oldLsArgs) =>
+                          if shouldAnnotateCon con
+                            then (con, mergeFresh (oldLsArgs, propagatedLsArgs))
+                            else (con, oldLsArgs))))
+           end
     end
                            
 
-  (* Take into account SCC concerns. TODO: remove redundancy with
-   * synchonizeSccTycons
-   *)
+  (* Create tycon to scc map and initial scc annotations *)
   fun processDatatypeScc (nodes: unit Node.t list): unit =
     let
       val sccTycons = List.map (nodes, getNodeTycon)
@@ -413,6 +434,7 @@ let
                     Layout.list (List.map (sccTycons, Tycon.layout)),
                     Layout.str "\n"])
 
+      (* Every item in an scc shares args *)
       val sccLsArgs =
         List.rev (List.fold
           (sccTycons, [],
@@ -424,17 +446,6 @@ let
         List.foreach (sccTycons, fn tycon =>
           (setDatatypeLsArgs (tycon,sccLsArgs)
            ; setTyconSccMembers (tycon, sccTycons)))
-
-      (* Annotate intra-SCC cons *)
-      val _ =
-        List.foreach (sccTycons,
-                      fn fromTycon =>
-                        if List.exists (sccTycons,
-                                        fn other =>
-                                          not (Tycon.equals (fromTycon, other)))
-                          then annotateConstructorsReferencingTycons
-                            (fromTycon, sccTycons)
-                        else ())
 
       val _ = debug (fn () => Layout.str "Finished processing datatype SCC")
     in
@@ -458,8 +469,8 @@ let
                             fn (memberTycon, acc) =>
                               List.fold
                                 (getDatatypeLsArgs memberTycon,
-                                acc,
-                                addUniqueLsArgRev)))
+                                 acc,
+                                 addUniqueLsArgRev)))
             val _ =
               List.foreach (sccTycons,
                             fn memberTycon =>
@@ -469,67 +480,71 @@ let
                 then List.foreach
                   (sccTycons, fn memberTycon =>
                     annotateConstructorsReferencingTycons
-                      (memberTycon, sccTycons))
+                      (memberTycon, sccTycons, true))
               else ()
           in
             ()
           end
     end
 
-  val seenTycons: Tycon.t list ref = ref []
-  fun markSeenTycon tycon = seenTycons := tycon :: !seenTycons
-  fun alreadySeenTycon tycon =
-    List.exists (!seenTycons, fn seen => Tycon.equals (seen, tycon))
+  fun propagateDatatypeLsArgs (): unit =
+    let
+      (* Mutable to simplify implementation *)
+      val seenTycons: Tycon.t list ref = ref []
+      fun markSeenTycon tycon = seenTycons := tycon :: !seenTycons
+      fun alreadySeenTycon tycon =
+        List.exists (!seenTycons, fn seen => Tycon.equals (seen, tycon))
 
-  (* Propagate Ls args requitements upwards, almost as in DFS
-   * TODO: PICK UP AND IGNORE SCC MEMBERS WHEN CONSTRUCTING THE
-   * datatypeLsArgsByTycon OR WHATEVER WE ARE ASSIGNING VIA setDatatypeLsArgs
-   *)
-  fun propagateDatatypeLsArgs (fromTycon: Tycon.t): unit =
-    if alreadySeenTycon fromTycon
-      then ()
-      else
-        let
-          val _ = markSeenTycon fromTycon
-          val sccTycons = getTyconSccMembers fromTycon
-          fun isSccMember tycon =
-            List.exists (sccTycons,
-                         fn tyconInScc =>
-                           Tycon.equals (tyconInScc, tycon))
-        in
-          case getTyconNode fromTycon of
-             NONE => ()
-           | SOME fromNode =>
-               let
-                 val _ =
-                   List.foreach
-                     (Node.successors fromNode, fn edge =>
-                        let
-                          val toTycon = getNodeTycon (Edge.to edge)
-                          val _ = propagateDatatypeLsArgs toTycon
-                        in
-                          if not (isSccMember toTycon)
-                            then
-                              let
-                                val _ =
-                                  annotateConstructorsReferencingTycons
-                                   (fromTycon, [toTycon])
-                                val _ = setDatatypeLsArgs
-                                  (fromTycon,
-                                   datatypeLsArgsByTycon fromTycon)
-                              in
-                                ()
-                              end
-                            else ()
-                        end)
-                 val _ = synchronizeSccTycons fromTycon
-                 val _ = debug (fn () =>
-                  Layout.seq [Layout.str "Propagated LS args for ",
-                              Tycon.layout fromTycon])
-               in
-                 ()
-               end
-        end
+      (* Propagate Ls args requitements upwards, ensuring SCC syncing *)
+      fun propagateDatatypeLsArgsH (fromTycon: Tycon.t): unit =
+        if alreadySeenTycon fromTycon
+          then ()
+          else
+            let
+              val _ = markSeenTycon fromTycon
+              val sccTycons = getTyconSccMembers fromTycon
+              fun isSccMember tycon =
+                List.exists (sccTycons,
+                             fn tyconInScc =>
+                               Tycon.equals (tyconInScc, tycon))
+            in
+              case getTyconNode fromTycon of
+                 NONE => ()
+               | SOME fromNode =>
+                   let
+                     val _ =
+                       List.foreach
+                         (Node.successors fromNode, fn edge =>
+                            let
+                              val toTycon = getNodeTycon (Edge.to edge)
+                              val _ = propagateDatatypeLsArgsH toTycon
+                            in
+                              if not (isSccMember toTycon)
+                                then
+                                  let
+                                    val _ =
+                                      annotateConstructorsReferencingTycons
+                                       (fromTycon, [toTycon], false)
+                                    val _ = setDatatypeLsArgs
+                                      (fromTycon,
+                                       datatypeLsArgsByTycon fromTycon)
+                                  in
+                                    ()
+                                  end
+                                else ()
+                            end)
+                     val _ = synchronizeSccTycons fromTycon
+                     val _ = debug (fn () =>
+                      Layout.seq [Layout.str "Propagated LS args for ",
+                                  Tycon.layout fromTycon])
+                   in
+                     ()
+                   end
+            end
+    in
+      Graph.foreachNode
+        (g, fn node => propagateDatatypeLsArgsH (getNodeTycon node))
+    end
   
   fun addUniqueVar (var: Var.t, vars: Var.t list): Var.t list =
     if List.exists (vars, fn v => Var.equals (v, var))
@@ -660,8 +675,7 @@ let
   val _ = graphDump "SCC init analysis"
 
   (* Propagate LS args bottom up *)
-  val _ = Graph.foreachNode
-    (g, fn node => propagateDatatypeLsArgs (getNodeTycon node))
+  val _ = propagateDatatypeLsArgs ()
   val _ = graphDump "Ls arg propagation"
 
   (* Annotate arrow bindings with ls *)
