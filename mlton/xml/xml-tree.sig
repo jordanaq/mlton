@@ -57,6 +57,12 @@ signature XML_TREE =
                        argType: Type.t,
                        body: exp,
                        mayInline: bool} -> t
+            val makeInternal:
+              {arg: Var.t,
+               argType: Type.t,
+               body: exp,
+               mayInline: bool,
+               plist: PropertyList.t} -> t
             val mayInline: t -> bool
             val plist: t -> PropertyList.t
          end

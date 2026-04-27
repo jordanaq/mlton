@@ -811,6 +811,16 @@ structure Lambda =
               mayInline = mayInline,
               plist = PropertyList.new ()}
 
+      (* make with plist, may not strictly be necessary as we could, in LSS,
+       * instead leave in place the original lambda where it still exists
+       *)
+      fun makeInternal {arg, argType, body, mayInline, plist} =
+         Lam {arg = arg,
+              argType = argType,
+              body = body,
+              mayInline = mayInline,
+              plist = plist}
+
       fun dest (Lam {arg, argType, body, mayInline, ...}) =
          {arg = arg, argType = argType, body = body, mayInline = mayInline}
 
